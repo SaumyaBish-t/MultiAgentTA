@@ -1,0 +1,43 @@
+services:
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    container_name: trading_timescale
+    ports:
+      - "5435:5432"          # changed to 5435 to avoid port conflict
+    environment:
+      POSTGRES_DB: market_data
+      POSTGRES_USER: trader
+      POSTGRES_PASSWORD: password
+      POSTGRES_HOST_AUTH_METHOD: md5
+      POSTGRES_INITDB_ARGS: "--auth-host=md5"
+    volumes:
+      - timescale_data:/var/lib/postgresql/data
+    restart: always
+
+  postgres:
+    image: postgres:16
+    container_name: trading_postgres
+    ports:
+      - "5434:5432"          # changed from 5433 to 5434
+    environment:
+      POSTGRES_DB: fundamentals
+      POSTGRES_USER: trader
+      POSTGRES_PASSWORD: password
+      POSTGRES_HOST_AUTH_METHOD: md5
+      POSTGRES_INITDB_ARGS: "--auth-host=md5"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: always
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+
+  prefect:
+    image: prefecthq/prefect:3-latest
+    ports: ["4200:4200"]
+    command: prefect server start --host 0.0.0.0
+
+volumes:
+  timescale_data:
+  postgres_data:

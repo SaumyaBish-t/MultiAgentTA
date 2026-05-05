@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MultiModelTA | Monitoring Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --bg-card: #1e293b;
+            --primary: #38bdf8;
+            --secondary: #818cf8;
+            --accent: #f472b6;
+            --text-main: #f8fafc;
+            --text-dim: #94a3b8;
+            --status-ok: #10b981;
+            --status-warn: #f59e0b;
+            --status-crit: #ef4444;
+            --glass: rgba(30, 41, 59, 0.7);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-main);
+            overflow-x: hidden;
+            background-image: radial-gradient(circle at 10% 20%, rgba(56, 189, 248, 0.05) 0%, transparent 40%),
+                              radial-gradient(circle at 90% 80%, rgba(129, 140, 248, 0.05) 0%, transparent 40%);
+        }
+
+        h1, h2, h3 { font-family: 'Outfit', sans-serif; }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(to right, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .status-badge {
+            padding: 0.5rem 1rem;
+            border-radius: 2rem;
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--status-ok);
+            font-size: 0.875rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: currentColor;
+            box-shadow: 0 0 10px currentColor;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.4; }
+            100% { opacity: 1; }
+        }
+
+        /* Dashboard Grid */
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 1.25rem;
+            padding: 1.5rem;
+            transition: transform 0.3s ease, border-color 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card:hover {
+            transform: translateY(-4px);
+            border-color: var(--primary);
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; height: 4px;
+            background: linear-gradient(to right, var(--primary), var(--secondary));
+            opacity: 0.5;
+        }
+
+        .card-title {
+            color: var(--text-dim);
+            font-size: 0.875rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.5rem;
+        }
+
+        .card-value {
+            font-size: 2rem;
+            font-weight: 700;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        .card-trend {
+            margin-top: 0.5rem;
+            font-size: 0.875rem;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .trend-up { color: var(--status-ok); }
+        .trend-down { color: var(--status-crit); }
+
+        /* Main Content Layout */
+        .main-layout {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 1.5rem;
+        }
+
+        /* Health Table */
+        .health-card {
+            grid-column: span 1;
+        }
+
+        .health-list {
+            margin-top: 1rem;
+        }
+
+        .health-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .health-item:last-child { border-bottom: none; }
+
+        .comp-name { font-weight: 600; }
+        .comp-status {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+        }
+
+        .status-healthy { background: rgba(16, 185, 129, 0.1); color: var(--status-ok); }
+        .status-down { background: rgba(239, 68, 68, 0.1); color: var(--status-crit); }
+
+        /* Alerts List */
+        .alerts-card {
+            height: 100%;
+        }
+
+        .alert-entry {
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            border-radius: 0.75rem;
+            background: rgba(255, 255, 255, 0.03);
+            border-left: 4px solid var(--primary);
+        }
+
+        .alert-entry.CRITICAL { border-left-color: var(--status-crit); }
+        .alert-entry.WARNING { border-left-color: var(--status-warn); }
+
+        .alert-meta {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            margin-bottom: 0.25rem;
+        }
+
+        .alert-msg { font-size: 0.875rem; line-height: 1.4; }
+
+        /* Loading Animation */
+        .loading {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: var(--bg-dark);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(56, 189, 248, 0.1);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+    </style>
+</head>
+<body>
+    <div class="loading" id="loading">
+        <div class="spinner"></div>
+    </div>
+
+    <div class="container">
+        <header>
+            <div class="logo">ANTIGRAVITY | MultiModelTA</div>
+            <div class="status-badge">
+                <div class="status-dot"></div>
+                SYSTEM LIVE
+            </div>
+        </header>
+
+        <!-- Stats Grid -->
+        <div class="grid">
+            <div class="card">
+                <div class="card-title">Portfolio Value</div>
+                <div class="card-value" id="val-portfolio">$0.00</div>
+                <div class="card-trend trend-up">↑ 2.4% (24h)</div>
+            </div>
+            <div class="card">
+                <div class="card-title">Daily P&L</div>
+                <div class="card-value" id="val-pnl">$0.00</div>
+                <div class="card-trend trend-up">↑ $1,240</div>
+            </div>
+            <div class="card">
+                <div class="card-title">Compliance Status</div>
+                <div class="card-value" id="val-compliance" style="color: var(--status-ok);">SECURED</div>
+                <div class="card-trend">0 Breaches Open</div>
+            </div>
+            <div class="card">
+                <div class="card-title">Model Drift</div>
+                <div class="card-value" id="val-drift">0.02</div>
+                <div class="card-trend" style="color: var(--status-ok);">Within Baseline</div>
+            </div>
+        </div>
+
+        <div class="main-layout">
+            <!-- Health Section -->
+            <div class="card health-card">
+                <h3 class="card-title">Component Health</h3>
+                <div class="health-list" id="health-list">
+                    <!-- Items injected by JS -->
+                </div>
+            </div>
+
+            <!-- Alerts Section -->
+            <div class="card alerts-card">
+                <h3 class="card-title">Recent Alerts</h3>
+                <div class="alerts-list" id="alerts-list">
+                    <!-- Alerts injected by JS -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = "http://localhost:8002/api";
+
+        async function fetchData() {
+            try {
+                // 1. Overview
+                const overview = await fetch(`${API_BASE}/dashboard/overview`).then(r => r.json());
+                updateOverview(overview);
+
+                // 2. Health
+                const health = await fetch(`${API_BASE}/health`).then(r => r.json());
+                updateHealth(health);
+
+                // 3. Alerts
+                const alerts = await fetch(`${API_BASE}/alerts`).then(r => r.json());
+                updateAlerts(alerts);
+
+                document.getElementById('loading').style.display = 'none';
+            } catch (err) {
+                console.error("Fetch failed:", err);
+            }
+        }
+
+        function updateOverview(data) {
+            document.getElementById('val-portfolio').textContent = `$${data.portfolio.total_value.toLocaleString()}`;
+            document.getElementById('val-pnl').textContent = `$${data.portfolio.daily_pnl.toLocaleString()}`;
+            document.getElementById('val-compliance').textContent = data.compliance.status;
+            document.getElementById('val-compliance').style.color = 
+                data.compliance.status === 'CRITICAL' ? 'var(--status-crit)' : 'var(--status-ok)';
+        }
+
+        function updateHealth(data) {
+            const list = document.getElementById('health-list');
+            list.innerHTML = data.map(item => `
+                <div class="health-item">
+                    <div class="comp-name">${item.component}</div>
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <div style="font-size: 0.75rem; color: var(--text-dim);">${item.latency ? item.latency.toFixed(1) + 'ms' : ''}</div>
+                        <div class="comp-status status-${item.status}">${item.status}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function updateAlerts(data) {
+            const list = document.getElementById('alerts-list');
+            list.innerHTML = data.map(item => `
+                <div class="alert-entry ${item.severity}">
+                    <div class="alert-meta">
+                        <span>${item.type}</span>
+                        <span>${new Date(item.timestamp).toLocaleTimeString()}</span>
+                    </div>
+                    <div class="alert-msg">${item.message}</div>
+                </div>
+            `).join('');
+        }
+
+        // Auto-refresh every 10s
+        setInterval(fetchData, 10000);
+        fetchData();
+    </script>
+</body>
+</html>
