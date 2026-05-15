@@ -1,10 +1,10 @@
 import asyncio
 from loguru import logger
-from signal_generation.agents.strategy_coder_agent import StrategyCoder
+from signal_generation.agents.strategy_coder_agent import StrategyCoderAgent
 from signal_generation.agents.backtester_agent import Backtester
-from signal_generation.agents.walk_forward_agent import WalkForwardValidator
+from signal_generation.agents.walk_forward_agent import WalkForwardAgent
 from signal_generation.agents.optimizer_agent import ParameterOptimizer
-from signal_generation.agents.signal_scorer_agent import SignalScorer
+from signal_generation.agents.signal_scorer_agent import SignalScorerAgent
 from signal_generation.pipeline.signal_pipeline import SignalPipeline
 
 async def main():

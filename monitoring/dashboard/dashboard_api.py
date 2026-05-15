@@ -21,6 +21,13 @@ from config.settings import settings
 from monitoring.alerts.alert_manager import alert_manager
 from monitoring.agents.health_monitor_agent import SystemHealthMonitor
 from monitoring.storage.monitoring_models import Alert, SystemHealthSnapshot, PerformanceMetrics, RegimeDetection, FeedbackAction
+from monitoring.dashboard.routers import strategy_comparison
+from monitoring.dashboard.routers import realtime
+from monitoring.dashboard.routers import pipeline_trigger
+from monitoring.dashboard.routers import portfolio_detail
+from monitoring.dashboard.routers import signals_detail
+from monitoring.dashboard.routers import risk_detail
+from monitoring.dashboard.routers import audit_detail
 
 app = FastAPI(title="MultiModelTA Monitoring API")
 
@@ -32,6 +39,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include routers
+app.include_router(strategy_comparison.router)
+app.include_router(realtime.router, prefix='/realtime')
+app.include_router(pipeline_trigger.router)
+app.include_router(portfolio_detail.router)
+app.include_router(signals_detail.router)
+app.include_router(risk_detail.router)
+app.include_router(audit_detail.router)
 
 # Shared components
 r = redis.from_url(settings.redis_url, decode_responses=True)
@@ -73,15 +89,21 @@ async def get_status():
         # Try Redis first
         data = r.get("monitoring:health:latest")
         if data:
-            health = json.loads(data)
+            try:
+                health = json.loads(data)
+                # Ensure health is a dict, not a double-encoded string
+                if isinstance(health, str):
+                    health = json.loads(health)
+            except (json.JSONDecodeError, TypeError):
+                health = {}
         else:
             # Fallback to health monitor run (might be slow)
             report = await health_monitor.run_full_health_check()
             health = report.dict()
             
         return {
-            "overall_status": health.get("overall"),
-            "phases": {k: v.get("status") for k, v in health.get("phases", {}).items()},
+            "overall_status": health.get("overall", "UNKNOWN") if isinstance(health, dict) else "UNKNOWN",
+            "phases": {k: v.get("status") for k, v in health.get("phases", {}).items()} if isinstance(health, dict) and "phases" in health else {},
             "portfolio_value": float(r.get("portfolio:current:value") or 100000.0),
             "daily_pnl_pct": float(r.get("portfolio:current:daily_pnl_pct") or 0.0),
             "drawdown": float(r.get("portfolio:drawdown:current") or 0.0),
@@ -94,47 +116,7 @@ async def get_status():
         logger.error(f"Failed to get status: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/portfolio")
-async def get_portfolio():
-    """Returns current portfolio state."""
-    try:
-        # Fetch from Redis
-        portfolio_raw = r.get("portfolio:current:state")
-        positions = json.loads(portfolio_raw) if portfolio_raw else []
-        
-        return {
-            "total_value": float(r.get("portfolio:current:value") or 0.0),
-            "cash": float(r.get("portfolio:current:cash") or 0.0),
-            "invested": float(r.get("portfolio:current:invested") or 0.0),
-            "positions": positions,
-            "performance": {
-                "daily_return": float(r.get("portfolio:perf:daily") or 0.0),
-                "weekly_return": float(r.get("portfolio:perf:weekly") or 0.0),
-                "monthly_return": float(r.get("portfolio:perf:monthly") or 0.0),
-                "sharpe_30d": float(r.get("portfolio:risk:sharpe_30d") or 0.0),
-                "max_drawdown": float(r.get("portfolio:risk:max_dd") or 0.0)
-            }
-        }
-    except Exception as e:
-        logger.error(f"Failed to get portfolio: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/signals")
-async def get_signals():
-    """Returns all active signals with performance."""
-    try:
-        signals_raw = r.get("signals:active:performance")
-        signals = json.loads(signals_raw) if signals_raw else []
-        
-        return {
-            "total_signals": len(signals),
-            "healthy": len([s for s in signals if s.get("decay_status") == "healthy"]),
-            "decaying": len([s for s in signals if s.get("decay_status") != "healthy"]),
-            "signals": signals
-        }
-    except Exception as e:
-        logger.error(f"Failed to get signals: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+# Replaced by portfolio_detail.py and signals_detail.py routers
 
 @app.get("/alerts")
 async def get_alerts(severity: Optional[str] = None, limit: int = 20):
@@ -203,7 +185,10 @@ async def get_regime():
     try:
         data = r.get("research:regime:current")
         if data:
-            return json.loads(data)
+            try:
+                return json.loads(data)
+            except json.JSONDecodeError:
+                pass
         
         with engine.connect() as conn:
             query = select(RegimeDetection).order_by(desc(RegimeDetection.detection_date)).limit(1)
@@ -215,18 +200,7 @@ async def get_regime():
         logger.error(f"Failed to get regime: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/audit")
-async def get_audit(event_type: Optional[str] = None, limit: int = 50):
-    """Returns recent audit events from Phase 7."""
-    try:
-        with engine.connect() as conn:
-            # Audit log is in phase 7
-            query = text("SELECT * FROM audit_log ORDER BY created_at DESC LIMIT :limit")
-            res = conn.execute(query, {"limit": limit}).fetchall()
-            return {"events": [dict(r._mapping) for r in res]}
-    except Exception as e:
-        logger.error(f"Failed to get audit log: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+# Replaced by audit_detail.py router
 
 @app.get("/health/detailed")
 async def get_detailed_health():
@@ -252,6 +226,29 @@ async def get_feedback():
             return {"actions": [dict(r._mapping) for r in res]}
     except Exception as e:
         logger.error(f"Failed to get feedback: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/account/status")
+async def get_account_status():
+    """Returns Alpaca account info with clear paper trading labeling."""
+    try:
+        from alpaca.trading.client import TradingClient
+        from config.settings import settings
+        client = TradingClient(
+            settings.alpaca_api_key.get_secret_value() if hasattr(settings.alpaca_api_key, 'get_secret_value') else settings.alpaca_api_key, 
+            settings.alpaca_secret_key.get_secret_value() if hasattr(settings.alpaca_secret_key, 'get_secret_value') else settings.alpaca_secret_key, 
+            paper=True
+        )
+        acct = client.get_account()
+        return {
+            "mode": "PAPER TRADING",
+            "explanation": "All trades are 100% simulated. No real money.",
+            "cash_balance": f"${float(acct.cash):,.2f} from Alpaca paper account",
+            "portfolio_value": f"${float(acct.portfolio_value):,.2f}",
+            "is_real_money": False
+        }
+    except Exception as e:
+        logger.error(f"Failed to get account status: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

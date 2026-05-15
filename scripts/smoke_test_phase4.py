@@ -15,8 +15,8 @@ from risk_management.agents.position_sizing_agent import PositionSizer
 from risk_management.agents.var_agent import VaRAgent
 from risk_management.agents.correlation_agent import CorrelationAgent
 from risk_management.agents.liquidity_agent import LiquidityAgent
-from risk_management.agents.drawdown_monitor_agent import DrawdownMonitor
-from risk_management.agents.risk_gate_agent import RiskGate
+from risk_management.agents.drawdown_monitor_agent import DrawdownMonitorAgent
+from risk_management.agents.risk_gate_agent import RiskGateAgent
 from risk_management.pipeline.risk_pipeline import RiskPipeline
 from signal_generation.storage.signal_models import TradingSignal
 

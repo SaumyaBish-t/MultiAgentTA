@@ -87,22 +87,39 @@ async def prepare_data_node(state: BacktesterState) -> dict[str, Any]:
         # Convert to pandas DataFrame and set datetime index
         target_df = pd.DataFrame(raw_data[ticker])
         if "timestamp" in target_df.columns:
-            target_df["timestamp"] = pd.to_datetime(target_df["timestamp"])
+            target_df["timestamp"] = pd.to_datetime(target_df["timestamp"], format='ISO8601', utc=True)
             target_df.set_index("timestamp", inplace=True)
+            
+        for col in ["open", "high", "low", "close", "volume"]:
+            if col in target_df.columns:
+                target_df[col] = pd.to_numeric(target_df[col], errors="coerce")
             
         # Clean and forward fill missing values (max 3 days)
         target_df.ffill(limit=3, inplace=True)
-        # Drop rows that still have NaNs (e.g. at the beginning)
-        target_df.dropna(inplace=True)
+        # Drop rows that still have NaNs strictly in critical pricing columns instead of optional/custom fields
+        subset_cols = [c for c in ["open", "high", "low", "close", "volume"] if c in target_df.columns]
+        if subset_cols:
+            target_df.dropna(subset=subset_cols, inplace=True)
+        else:
+            target_df.dropna(inplace=True)
         
         # Prepare SPY data if available
         if "SPY" in raw_data:
             spy_df = pd.DataFrame(raw_data["SPY"])
             if "timestamp" in spy_df.columns:
-                spy_df["timestamp"] = pd.to_datetime(spy_df["timestamp"])
+                spy_df["timestamp"] = pd.to_datetime(spy_df["timestamp"], format='ISO8601', utc=True)
                 spy_df.set_index("timestamp", inplace=True)
+                
+            for col in ["open", "high", "low", "close", "volume"]:
+                if col in spy_df.columns:
+                    spy_df[col] = pd.to_numeric(spy_df[col], errors="coerce")
+                    
             spy_df.ffill(limit=3, inplace=True)
-            spy_df.dropna(inplace=True)
+            spy_subset = [c for c in ["open", "high", "low", "close", "volume"] if c in spy_df.columns]
+            if spy_subset:
+                spy_df.dropna(subset=spy_subset, inplace=True)
+            else:
+                spy_df.dropna(inplace=True)
             
             # Align SPY data with target ticker index to ensure matching shapes
             spy_df = spy_df.reindex(target_df.index).ffill()
@@ -171,13 +188,18 @@ async def run_vectorbt_backtest_node(state: BacktesterState) -> dict[str, Any]:
     try:
         ticker = state["ticker"]
         price_df = state["price_data"][ticker]
-        # Reconstruct Series
-        entries = pd.Series(state["entries"], index=price_df.index)
-        exits = pd.Series(state["exits"], index=price_df.index)
+        
+        # Ensure precise types for Numba compilation in VectorBT
+        if len(price_df) == 0:
+            raise ValueError(f"Price dataframe for {ticker} is empty.")
+            
+        close_series = pd.to_numeric(price_df['close'], errors='coerce').ffill().astype(float)
+        entries = pd.Series(state["entries"], index=price_df.index).fillna(False).astype(bool)
+        exits = pd.Series(state["exits"], index=price_df.index).fillna(False).astype(bool)
         
         # Run VectorBT portfolio simulation
         portfolio = vbt.Portfolio.from_signals(
-            close=price_df['close'],
+            close=close_series,
             entries=entries,
             exits=exits,
             init_cash=100_000,
@@ -187,20 +209,22 @@ async def run_vectorbt_backtest_node(state: BacktesterState) -> dict[str, Any]:
         )
         
         # Run SPY benchmark simulation (buy and hold) if available
-        if "SPY" in state["price_data"]:
+        benchmark = None
+        if "SPY" in state["price_data"] and len(state["price_data"]["SPY"]) > 0:
             spy_df = state["price_data"]["SPY"]
-            benchmark_entries = pd.Series(False, index=spy_df.index)
-            benchmark_entries.iloc[0] = True # Buy on first day
+            spy_close = pd.to_numeric(spy_df['close'], errors='coerce').ffill().astype(float)
+            benchmark_entries = pd.Series(False, index=spy_df.index).astype(bool)
+            if len(benchmark_entries) > 0:
+                benchmark_entries.iloc[0] = True # Buy on first day
             
             benchmark = vbt.Portfolio.from_signals(
-                close=spy_df['close'],
+                close=spy_close,
                 entries=benchmark_entries,
                 init_cash=100_000,
                 freq='1D'
             )
-            return {"portfolio": portfolio, "benchmark_metrics": {"portfolio": benchmark}}
             
-        return {"portfolio": portfolio, "benchmark_metrics": {"portfolio": None}}
+        return {"portfolio": portfolio, "benchmark_metrics": {"portfolio": benchmark}}
     except Exception as e:
         logger.error(f"VectorBT backtest failed: {e}")
         return {"error": str(e), "rejection_reasons": ["BACKTEST_ERROR"]}
@@ -512,7 +536,7 @@ def build_backtester_graph() -> StateGraph:
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # PUBLIC INTERFACE
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-class Backtester:
+class BacktesterAgent:
     def __init__(self):
         self._graph = build_backtester_graph().compile()
         logger.info("Backtester agent initialised")

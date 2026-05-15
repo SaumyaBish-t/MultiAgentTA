@@ -105,8 +105,8 @@ _HYPOTHESIS_SYSTEM_PROMPT = (
     '    "stop_loss": "str"\n'
     '  }}\n'
     "}}\n"
-    "Only generate HIGH conviction (>0.6) hypotheses. If overall conviction "
-    "is strictly < 0.6, return null instead of a dictionary. "
+    "Generate a hypothesis even with limited data. Assess conviction honestly.\n"
+    "If overall conviction is strictly < 0.3, return null instead of a dictionary. "
     "Return ONLY valid JSON."
 )
 
@@ -178,37 +178,50 @@ async def gather_research_node(state: HypothesisState) -> dict[str, Any]:
 async def assess_signal_alignment_node(state: HypothesisState) -> dict[str, Any]:
     bullish_count = 0
     bearish_count = 0
+    neutral_count = 0
 
     # Sentiment bias
     s_label = state["sentiment_result"].get("label", "neutral")
     if s_label == "bullish": bullish_count += 1
     elif s_label == "bearish": bearish_count += 1
+    else: neutral_count += 1
 
     # Technical bias
     t_bias = state["technical_result"].get("bias", "neutral")
     if t_bias == "bullish": bullish_count += 1
     elif t_bias == "bearish": bearish_count += 1
+    else: neutral_count += 1
 
     # Fundamental (score > 0.6 is bullish, < 0.4 is bearish)
     f_score = state["fundamental_result"].get("overall_score", 0.5)
     if f_score > 0.6: bullish_count += 1
     elif f_score < 0.4: bearish_count += 1
+    else: neutral_count += 1
 
     # Macro regime
     m_regime = state["macro_result"].get("regime", "uncertain")
     if m_regime in ["bull", "recovery"]: bullish_count += 1
     elif m_regime in ["recession", "stagflation"]: bearish_count += 1
+    else: neutral_count += 1
 
+    total_signals = bullish_count + bearish_count + neutral_count
+    
     if bullish_count >= 3 and bearish_count <= 1:
         alignment = "strongly_aligned_bullish"
     elif bearish_count >= 3 and bullish_count <= 1:
         alignment = "strongly_aligned_bearish"
-    elif abs(bullish_count - bearish_count) <= 1:
+    elif bullish_count >= 2 and bearish_count == 0:
+        alignment = "moderately_aligned_bullish"
+    elif bearish_count >= 2 and bullish_count == 0:
+        alignment = "moderately_aligned_bearish"
+    elif bullish_count >= 2 and bearish_count >= 2:
+        # Only truly conflicting when strong signals on BOTH sides
         alignment = "conflicting"
     else:
+        # Mixed or limited data — let the LLM decide with conviction scoring
         alignment = "mixed"
 
-    logger.debug(f"Signal alignment for {state['ticker']}: {alignment} (Bull: {bullish_count}, Bear: {bearish_count})")
+    logger.debug(f"Signal alignment for {state['ticker']}: {alignment} (Bull: {bullish_count}, Bear: {bearish_count}, Neutral: {neutral_count})")
     
     return {"signal_alignment": alignment}
 
@@ -271,7 +284,7 @@ async def validate_hypothesis_node(state: HypothesisState) -> dict[str, Any]:
     f_score = state["fundamental_result"].get("overall_score", 0.5)
 
     reason = None
-    if conviction < 0.6:
+    if conviction < 0.3:
         reason = "LOW_CONVICTION"
     elif m_regime == "recession" and direction == "long":
         reason = "MACRO_HEADWIND"
@@ -349,17 +362,25 @@ async def store_hypothesis_node(state: HypothesisState) -> dict[str, Any]:
                 id=uuid.uuid4(),
                 ticker=ticker,
                 hypothesis_type="composite",
-                title=title[:255],
+                title=title[:300], # Model allows 300
                 description=desc,
-                status=status,
                 conviction_score=conviction,
-                supporting_data={
+                expected_direction=direction,
+                expected_timeframe=timeframe,
+                status=status,
+                supporting_signals={
                     "catalysts": catalysts,
-                    "risks": risks,
-                    "invalidations": invalidations,
-                    "timeframe": timeframe,
                     "price_targets": h.get("price_targets", {}) if h else {}
                 },
+                contradicting_signals={"risks": risks},
+                data_sources_used={
+                    "sentiment": bool(state.get("sentiment_result")),
+                    "technical": bool(state.get("technical_result")),
+                    "fundamental": bool(state.get("fundamental_result")),
+                    "macro": bool(state.get("macro_result")),
+                    "documents": bool(state.get("document_result"))
+                },
+                created_by_agent="HypothesisAgent",
                 created_at=now,
                 updated_at=now,
                 expires_at=exp if not reason else now
@@ -368,7 +389,7 @@ async def store_hypothesis_node(state: HypothesisState) -> dict[str, Any]:
             session.commit()
         engine.dispose()
     except Exception as exc:
-        logger.error(f"Failed to store ResearchHypothesis: {exc}")
+        logger.error(f"Failed to store ResearchHypothesis for {ticker}: {exc}")
 
     return {}
 

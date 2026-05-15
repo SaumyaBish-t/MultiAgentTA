@@ -2,7 +2,7 @@ import json
 import uuid
 import math
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TypedDict, Any, Optional, Dict, List
 from dataclasses import dataclass
 
@@ -284,7 +284,7 @@ async def store_var_results_node(state: VaRState) -> dict[str, Any]:
         # We can also update the latest PortfolioRiskSnapshot or create a partial one
         # Assuming other fields are populated elsewhere, we'll create a targeted snapshot
         snap = PortfolioRiskSnapshot(
-            snapshot_time=datetime.utcnow(),
+            snapshot_time=datetime.now(timezone.utc),
             total_portfolio_value=total_val,
             cash_pct=0.0, # Placeholder, real value should come from portfolio tracker
             invested_pct=1.0, 

@@ -110,7 +110,7 @@ async def fetch_price_data_node(state: TechnicalState) -> dict[str, Any]:
 
     # Convert to DataFrame
     df = pd.DataFrame(bars)
-    df["timestamp"] = pd.to_datetime(df["timestamp"])
+    df["timestamp"] = pd.to_datetime(df["timestamp"], format='ISO8601', utc=True)
     df.set_index("timestamp", inplace=True)
     df.sort_index(inplace=True)
 
@@ -128,7 +128,7 @@ async def calculate_indicators_node(state: TechnicalState) -> dict[str, Any]:
 
     try:
         df = pd.DataFrame(state["price_data"])
-        df["timestamp"] = pd.to_datetime(df["timestamp"])
+        df["timestamp"] = pd.to_datetime(df["timestamp"], format='ISO8601', utc=True)
         df.set_index("timestamp", inplace=True)
         
         close = df["close"]

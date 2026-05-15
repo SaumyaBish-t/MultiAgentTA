@@ -6,6 +6,9 @@ from typing import Any, TypedDict, Optional
 import pandas as pd
 import numpy as np
 
+# Suppress pandas future warnings from dynamically generated scripts
+pd.set_option('future.no_silent_downcasting', True)
+
 from langgraph.graph import StateGraph, END
 from langchain_core.messages import SystemMessage, HumanMessage
 from loguru import logger
@@ -472,7 +475,7 @@ def build_strategy_coder_graph() -> StateGraph:
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # PUBLIC INTERFACE
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-class StrategyCoder:
+class StrategyCoderAgent:
     def __init__(self):
         self._graph = build_strategy_coder_graph().compile()
         logger.info("StrategyCoder initialised")

@@ -1,0 +1,71 @@
+@import "tailwindcss";
+
+@theme {
+  --color-page: #F0F4FF;
+  --color-surface: #FFFFFF;
+  --color-sidebar: #1A1F3A;
+  
+  --color-indigo-50: #EEF1FF;
+  --color-indigo-200: #B8C3F8;
+  --color-indigo-400: #6B7EE8;
+  --color-indigo-500: #4F63D2;
+  --color-indigo-600: #3B4DB0;
+  --color-indigo-700: #2D3A8C;
+  --color-indigo-900: #1A1F3A;
+
+  --color-amber-100: #FEF3D7;
+  --color-amber-300: #F9C05A;
+  --color-amber-400: #F5A623;
+  --color-amber-500: #F08C00;
+  --color-amber-700: #B85C00;
+
+  --color-cyan-100: #CFFAFE;
+  --color-cyan-400: #22D3EE;
+  --color-cyan-500: #06B6D4;
+  --color-cyan-600: #0891B2;
+
+  --color-positive: #059669;
+  --color-positive-bg: #ECFDF5;
+  --color-negative: #DC2626;
+  --color-negative-bg: #FEF2F2;
+  --color-warning: #D97706;
+  --color-warning-bg: #FFFBEB;
+
+  --color-text-primary: #0F172A;
+  --color-text-secondary: #475569;
+  --color-text-muted: #94A3B8;
+
+  --color-border: #E2E8F0;
+  --color-border-strong: #CBD5E1;
+
+  --font-sans: "Inter", "system-ui", "-apple-system", "sans-serif";
+  --font-mono: "JetBrains Mono", "IBM Plex Mono", "monospace";
+  
+  --spacing-unit: 4px;
+}
+
+@layer base {
+  body {
+    @apply bg-page text-text-primary font-sans;
+    margin: 0;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-sans font-bold text-indigo-900;
+  }
+}
+
+/* Custom Utilities */
+@utility panel {
+  @apply bg-surface border border-border rounded-xl shadow-sm p-5;
+}
+
+@utility data-tabular {
+  font-family: "Work Sans", "Inter", sans-serif;
+  font-variant-numeric: tabular-nums;
+  @apply font-medium;
+}
+
+@utility label-caps {
+  @apply text-[11px] font-semibold uppercase tracking-wider text-text-muted;
+}

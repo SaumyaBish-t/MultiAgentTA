@@ -17,11 +17,11 @@ from alpha_research.storage.research_models import ResearchHypothesis
 from signal_generation.storage.signal_models import TradingSignal, SignalGenerationRun
 
 # Import Agents
-from signal_generation.agents.strategy_coder_agent import StrategyCoder
-from signal_generation.agents.backtester_agent import Backtester
-from signal_generation.agents.walk_forward_agent import WalkForwardValidator
-from signal_generation.agents.optimizer_agent import ParameterOptimizer
-from signal_generation.agents.signal_scorer_agent import SignalScorer
+from signal_generation.agents.strategy_coder_agent import StrategyCoderAgent
+from signal_generation.agents.backtester_agent import BacktesterAgent
+from signal_generation.agents.walk_forward_agent import WalkForwardAgent
+from signal_generation.agents.optimizer_agent import OptimizerAgent
+from signal_generation.agents.signal_scorer_agent import SignalScorerAgent
 
 # ==========================================
 # STATE & DATACLASSES
@@ -59,11 +59,11 @@ class PipelineResult:
 class SignalPipeline:
     def __init__(self):
         # Instantiate Agents
-        self.coder = StrategyCoder()
-        self.backtester = Backtester()
-        self.validator = WalkForwardValidator()
-        self.optimizer = ParameterOptimizer()
-        self.scorer = SignalScorer()
+        self.coder = StrategyCoderAgent()
+        self.backtester = BacktesterAgent()
+        self.validator = WalkForwardAgent()
+        self.optimizer = OptimizerAgent()
+        self.scorer = SignalScorerAgent()
         
         # Build Graph
         workflow = StateGraph(SignalPipelineState)

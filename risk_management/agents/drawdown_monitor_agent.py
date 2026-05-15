@@ -1,6 +1,6 @@
 import json
 import asyncio
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from typing import TypedDict, Any, Optional
 from dataclasses import dataclass
 
@@ -189,7 +189,7 @@ async def execute_circuit_breaker_actions_node(state: DrawdownState) -> dict[str
                     session.execute(
                         update(CircuitBreaker)
                         .where(CircuitBreaker.breaker_type.in_(["portfolio_drawdown", "daily_loss"]))
-                        .values(triggered=True, triggered_at=datetime.utcnow())
+                        .values(triggered=True, triggered_at=datetime.now(timezone.utc))
                     )
                     
                 elif action == "reduce_all_50pct":
@@ -313,7 +313,7 @@ class DrawdownResult:
     peak_value: float
     current_value: float
 
-class DrawdownMonitor:
+class DrawdownMonitorAgent:
     """Ultra-low latency portfolio Drawdown Monitor and Circuit Breaker."""
     
     def __init__(self):
@@ -394,7 +394,7 @@ class DrawdownMonitor:
             with Session() as session:
                 session.execute(
                     update(CircuitBreaker)
-                    .values(triggered=False, reset_at=datetime.utcnow())
+                    .values(triggered=False, reset_at=datetime.now(timezone.utc))
                 )
                 session.commit()
             return True

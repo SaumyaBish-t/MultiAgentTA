@@ -3,7 +3,7 @@ from prefect import flow, task
 from loguru import logger
 
 from risk_management.pipeline.risk_pipeline import RiskPipeline
-from risk_management.agents.drawdown_monitor_agent import DrawdownMonitor
+from risk_management.agents.drawdown_monitor_agent import DrawdownMonitorAgent
 from risk_management.agents.var_agent import VaRAgent
 from risk_management.agents.correlation_agent import CorrelationAgent
 
@@ -23,7 +23,7 @@ async def run_risk_pipeline_task(signals: list = None):
 async def monitor_drawdown_task():
     """Prefect task to trigger one cycle of the low-latency drawdown monitor."""
     logger.info("Executing Prefect Task: monitor_drawdown_task")
-    monitor = DrawdownMonitor()
+    monitor = DrawdownMonitorAgent()
     result = await monitor.run()
     return result
 

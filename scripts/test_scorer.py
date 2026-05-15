@@ -8,7 +8,7 @@ from sqlalchemy.orm import sessionmaker
 from config.settings import settings
 from signal_generation.storage.signal_models import TradingSignal, BacktestResult, WalkForwardResult
 from alpha_research.storage.research_models import ResearchHypothesis
-from signal_generation.agents.signal_scorer_agent import SignalScorer
+from signal_generation.agents.signal_scorer_agent import SignalScorerAgent
 
 async def main():
     logger.info("Starting SignalScorer test...")
@@ -116,7 +116,7 @@ async def main():
             
         session.commit()
         
-    scorer = SignalScorer()
+    scorer = SignalScorerAgent()
     
     logger.info("--- Testing score_all ---")
     all_signals = await scorer.score_all()

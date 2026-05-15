@@ -5,7 +5,51 @@ from langchain_core.embeddings import Embeddings
 from config.settings import settings
 from loguru import logger
 import httpx
-from typing import List
+from typing import List, Any
+import functools
+import datetime
+import json
+import uuid
+
+def log_llm_call(func):
+    """
+    Decorator to log LLM usage (tokens, cost) to the audit system.
+    Can be applied to any function that makes an LLM call.
+    """
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        start_time = datetime.datetime.now(datetime.timezone.utc)
+        result = func(*args, **kwargs)
+        
+        try:
+            # Basic token extraction heuristics
+            tokens = 0
+            model = "unknown"
+            if hasattr(result, "response_metadata") and "token_usage" in result.response_metadata:
+                tokens = result.response_metadata["token_usage"].get("total_tokens", 0)
+                model = result.response_metadata.get("model_name", "unknown")
+                
+            logger.info(f"LLM Call Logged - Model: {model}, Tokens: {tokens}")
+            
+            # Save to Phase 7 audit log
+            from sqlalchemy import create_engine, text
+            from config.settings import settings
+            engine = create_engine(settings.postgres_url)
+            with engine.connect() as conn:
+                conn.execute(text('''
+                    INSERT INTO audit_log (id, event_type, entity_type, action, actor, details, immutable_hash, created_at)
+                    VALUES (:id, 'llm_usage', 'system', 'llm_call', 'agent', :details, '0000', NOW())
+                    ON CONFLICT DO NOTHING
+                '''), {
+                    "id": str(uuid.uuid4()),
+                    "details": json.dumps({"model": model, "tokens": tokens, "cost_usd": 0.0})
+                })
+                conn.commit()
+        except Exception as e:
+            logger.error(f"Failed to log LLM call: {e}")
+            
+        return result
+    return wrapper
 
 class NIMEmbeddings(Embeddings):
     """
@@ -85,98 +129,124 @@ class LLMFactory:
     _groq_key_index = 0
 
     @classmethod
-    def _get_groq_key(cls) -> str:
-        """Rotates through available Groq API keys to distribute load."""
+    def _create_groq_with_fallbacks(cls, model_name: str, temperature: float, max_tokens: int) -> Any:
+        """
+        Creates a primary ChatGroq instance using a rotated key, and automatically builds
+        fallbacks using all other provided Groq keys to handle Token/RPM limits instantly.
+        """
         keys_str = settings.llm.groq_api_keys
         keys = [k.strip() for k in keys_str.split(",") if k.strip()]
-        
+        if not keys and settings.llm.groq_api_key:
+            keys = [settings.llm.groq_api_key.strip()]
+            
         if not keys:
-            return settings.llm.groq_api_key
-        
-        key = keys[cls._groq_key_index % len(keys)]
+            return ChatGroq(model=model_name, temperature=temperature, max_tokens=max_tokens)
+            
+        # Select primary key via rotation
+        primary_key = keys[cls._groq_key_index % len(keys)]
         cls._groq_key_index += 1
-        return key
+        
+        primary_llm = ChatGroq(
+            model=model_name,
+            api_key=primary_key,
+            temperature=temperature,
+            max_tokens=max_tokens
+        )
+        
+        # Build fallbacks using all remaining keys
+        fallbacks = []
+        for k in keys:
+            if k != primary_key:
+                fallbacks.append(ChatGroq(
+                    model=model_name,
+                    api_key=k,
+                    temperature=temperature,
+                    max_tokens=max_tokens
+                ))
+                
+        # Also append Mistral fallback as ultimate safety net
+        try:
+            fallbacks.append(cls.get_fallback_llm())
+        except Exception:
+            pass
+            
+        if fallbacks:
+            return primary_llm.with_fallbacks(fallbacks)
+        return primary_llm
 
-    @staticmethod
-    def get_orchestrator_llm() -> ChatGroq:
+    @classmethod
+    def get_orchestrator_llm(cls) -> Any:
         """Master orchestrator — fast routing decisions."""
-        return ChatGroq(
-            model=settings.llm.groq_model_fast,
-            api_key=LLMFactory._get_groq_key(),
+        return cls._create_groq_with_fallbacks(
+            model_name=settings.llm.groq_model_fast,
             temperature=0.1,
             max_tokens=2048
         )
 
-    @staticmethod
-    def get_signal_llm() -> ChatGroq:
+    @classmethod
+    def get_signal_llm(cls) -> Any:
         """Signal generation — needs speed and reliability."""
-        return ChatGroq(
-            model=settings.llm.groq_model_fast,
-            api_key=LLMFactory._get_groq_key(),
+        return cls._create_groq_with_fallbacks(
+            model_name=settings.llm.groq_model_fast,
             temperature=0.1,
             max_tokens=2048
         )
 
-    @staticmethod
-    def get_risk_llm() -> ChatGroq:
+    @classmethod
+    def get_risk_llm(cls) -> Any:
         """Risk management — critical path, must be fast."""
-        return ChatGroq(
-            model=settings.llm.groq_model_fast,
-            api_key=LLMFactory._get_groq_key(),
+        return cls._create_groq_with_fallbacks(
+            model_name=settings.llm.groq_model_fast,
             temperature=0,
             max_tokens=1024
         )
 
-    @staticmethod
-    def get_simple_llm() -> ChatGroq:
+    @classmethod
+    def get_simple_llm(cls) -> Any:
         """
         Simple tasks: compliance checks, data quality flags.
         Uses 8B model to preserve 70B quota.
         """
-        return ChatGroq(
-            model=settings.llm.groq_model_simple,
-            api_key=LLMFactory._get_groq_key(),
+        return cls._create_groq_with_fallbacks(
+            model_name=settings.llm.groq_model_simple,
             temperature=0,
             max_tokens=512
         )
 
     # ── Cerebras LLMs ────────────────────────────────────
 
-    @staticmethod
-    def get_research_llm() -> ChatGroq:
+    @classmethod
+    def get_research_llm(cls) -> Any:
         """
         Research & document agents.
         Moved to Groq for stability.
         """
-        return ChatGroq(
-            model=settings.llm.groq_model_fast,
-            api_key=LLMFactory._get_groq_key(),
+        return cls._create_groq_with_fallbacks(
+            model_name=settings.llm.groq_model_fast,
             temperature=0.2,
             max_tokens=4096
         )
 
-    @staticmethod
-    def get_document_llm() -> ChatGroq:
+    @classmethod
+    def get_document_llm(cls) -> Any:
         """
         Document intelligence / RAG agent.
         Moved to Groq for stability.
         """
-        return ChatGroq(
-            model=settings.llm.groq_model_fast,
-            api_key=LLMFactory._get_groq_key(),
+        return cls._create_groq_with_fallbacks(
+            model_name=settings.llm.groq_model_fast,
             temperature=0.1,
             max_tokens=4096
         )
 
-    @staticmethod
-    def get_agent_llm() -> ChatGroq:
+    @classmethod
+    def get_agent_llm(cls) -> Any:
         """
         For agentic tasks specifically.
         Moved to Groq for stability.
         """
-        return ChatGroq(
-            model=settings.llm.groq_model_fast,
-            api_key=LLMFactory._get_groq_key(),
+        return cls._create_groq_with_fallbacks(
+            model_name=settings.llm.groq_model_fast,
             temperature=0.1,
             max_tokens=4096
         )
@@ -212,15 +282,14 @@ class LLMFactory:
         cls._openrouter_key_index += 1
         return key
 
-    @staticmethod
-    def get_reasoning_llm() -> ChatGroq:
+    @classmethod
+    def get_reasoning_llm(cls) -> Any:
         """
         Deep reasoning: hypothesis generation, 
-        fundamental analysis. Switched to Groq for stability.
+        fundamental analysis. Switched to Groq with robust multi-key fallbacks.
         """
-        return ChatGroq(
-            model=settings.llm.groq_model_fast,
-            api_key=LLMFactory._get_groq_key(),
+        return cls._create_groq_with_fallbacks(
+            model_name=settings.llm.groq_model_fast,
             temperature=0.3,
             max_tokens=4096
         )

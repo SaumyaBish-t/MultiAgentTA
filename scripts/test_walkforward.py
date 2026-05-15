@@ -7,7 +7,7 @@ from sqlalchemy.orm import sessionmaker
 from config.settings import settings
 from signal_generation.storage.signal_models import TradingSignal
 from alpha_research.storage.research_models import ResearchHypothesis
-from signal_generation.agents.walk_forward_agent import WalkForwardValidator
+from signal_generation.agents.walk_forward_agent import WalkForwardAgent
 
 async def main():
     logger.info("Starting WalkForwardAgent test...")
@@ -71,7 +71,7 @@ def strategy(price_data: pd.DataFrame, params: dict) -> tuple[pd.Series, pd.Seri
         session.add(db_signal)
         session.commit()
     
-    validator = WalkForwardValidator()
+    validator = WalkForwardAgent()
     # Test with 3 splits for speed
     result = await validator.validate(mock_signal_data, n_splits=3, train_pct=0.7)
     

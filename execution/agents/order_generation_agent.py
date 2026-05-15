@@ -50,7 +50,8 @@ async def fetch_market_state_node(state: OrderGenState) -> Dict[str, Any]:
     adapter = AlpacaBrokerAdapter()
     try:
         # Get list of tickers from rebalance plan
-        trades = state["rebalance_plan"].get("trades", [])
+        plan = state.get("rebalance_plan") or {}
+        trades = plan.get("trades", [])
         tickers = list(set(t["ticker"] for t in trades))
         
         # 1. Fetch from Broker
@@ -66,8 +67,8 @@ async def fetch_market_state_node(state: OrderGenState) -> Dict[str, Any]:
         # 2. Update State
         return {
             "market_state": {
-                "is_open": clock["is_open"],
-                "next_close": clock["next_close"],
+                "is_open": clock.get("is_open", False),
+                "next_close": clock.get("next_close"),
                 "prices": prices
             },
             "account_state": account,
@@ -103,14 +104,14 @@ async def validate_execution_conditions_node(state: OrderGenState) -> Dict[str, 
         return {"error": "PDT_RISK", "status": "halted"}
         
     # CHECK 4: Buying Power Check
-    trades = state["rebalance_plan"].get("trades", [])
+    plan = state.get("rebalance_plan") or {}
+    trades = plan.get("trades", [])
     total_buy_value = sum(t["shares"] * market["prices"].get(t["ticker"], 0) 
-                          for t in trades if t["action"] == "buy")
+                          for t in trades if t.get("action") == "buy")
     
-    if total_buy_value > account["buying_power"]:
-        logger.warning(f"Insufficient buying power: ${total_buy_value:,.2f} > ${account['buying_power']:,.2f}. Scaling down.")
-        # Scaling logic would go here, but for now we'll just flag it
-        
+    if total_buy_value > account.get("buying_power", 0):
+        logger.warning(f"Insufficient buying power: ${total_buy_value:,.2f} > ${account.get('buying_power', 0):,.2f}. Scaling down.")
+    
     return {"status": "validated"}
 
 async def determine_execution_strategy_node(state: OrderGenState) -> Dict[str, Any]:
@@ -132,15 +133,18 @@ async def determine_execution_strategy_node(state: OrderGenState) -> Dict[str, A
         strategy = "twap"
         
     # 3. Time-based strategy (near close)
-    # If < 30 min to close, use MOC (Market on Close)
-    market = state["market_state"]
-    try:
-        next_close = datetime.fromisoformat(market["next_close"])
-        now = datetime.now(timezone.utc)
-        if next_close - now < timedelta(minutes=30):
-            strategy = "staged" # Use MOC orders
-    except:
-        pass
+    # If < 30 min to close, use staged (MOC)
+    market = state.get("market_state", {})
+    next_close_str = market.get("next_close")
+    if next_close_str:
+        try:
+            next_close = datetime.fromisoformat(next_close_str)
+            now = datetime.now(timezone.utc)
+            diff = (next_close - now).total_seconds()
+            if 0 < diff < 1800: # Within 30 minutes in the future
+                strategy = "staged"
+        except:
+            pass
         
     return {"execution_strategy": strategy}
 
@@ -148,9 +152,10 @@ async def generate_orders_node(state: OrderGenState) -> Dict[str, Any]:
     """Convert rebalance trades into specific order instructions."""
     if state.get("error"): return {}
     
-    trades = state["rebalance_plan"].get("trades", [])
-    prices = state["market_state"]["prices"]
-    strategy = state["execution_strategy"]
+    plan = state.get("rebalance_plan") or {}
+    trades = plan.get("trades", []) or state.get("trades_to_execute", [])
+    prices = state.get("market_state", {}).get("prices", {})
+    strategy = state.get("execution_strategy", "immediate")
     
     generated_orders = []
     skipped_trades = []

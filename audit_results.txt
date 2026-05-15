@@ -1,0 +1,57 @@
+=== REALTIME 1-MIN DATA STATUS ===
+STALE AMZN: 157 bars, last: 2026-05-07 20:00:00+00:00
+STALE MSFT: 157 bars, last: 2026-05-07 20:00:00+00:00
+STALE NVDA: 157 bars, last: 2026-05-07 20:00:00+00:00
+STALE JPM: 157 bars, last: 2026-05-07 20:00:00+00:00
+STALE SPY: 157 bars, last: 2026-05-07 20:00:00+00:00
+STALE QQQ: 157 bars, last: 2026-05-07 20:00:00+00:00
+STALE AAPL: 5451 bars, last: 2026-05-07 20:00:00+00:00
+STALE TSLA: 157 bars, last: 2026-05-07 20:00:00+00:00
+STALE GOOGL: 157 bars, last: 2026-05-07 20:00:00+00:00
+ohlcv_bars.ticker width: 10 chars
+
+=== POSTGRES TICKER COLUMN WIDTHS ===
+NOT MIGRATED trading_signals.ticker: VARCHAR(10)
+NOT MIGRATED portfolio_positions.ticker: VARCHAR(10)
+NOT MIGRATED approved_signals.ticker: VARCHAR(10)
+NOT MIGRATED orders.ticker: VARCHAR(10)
+OK research_hypotheses.ticker: VARCHAR(20)
+OK sentiment_scores.ticker: VARCHAR(20)
+NOT MIGRATED technical_signals.ticker: VARCHAR(10)
+NOT MIGRATED fundamental_scores.ticker: VARCHAR(10)
+NOT MIGRATED backtest_results.ticker: VARCHAR(10)
+NOT MIGRATED compliance_checks.ticker: VARCHAR(10)
+NOT MIGRATED audit_log.ticker: VARCHAR(10)
+NOT MIGRATED pnl_attribution.ticker: VARCHAR(10)
+
+=== TIMEFRAME CONSTRAINTS ===
+OK chk_expected_timeframe: (((expected_timeframe)::text = ANY ((ARRAY['intraday'::character varying, 'swing'::character varying, 'position'::character varying, 'n/a'::character varying])::text[])))
+
+=== TABLE ROW COUNTS ===
+trading_signals: 37
+backtest_results: 17
+portfolio_positions: 7
+research_hypotheses: 20
+sentiment_scores: 22
+audit_log: 136
+orders: 1
+
+=== API ENDPOINT STATUS ===
+403 8000/prices/AAPL/latest?timeframe=1min
+FAIL 8000/prices/RELIANCE.NS/latest?timeframe=1min: timed out
+200 8000/health
+200 8001/status
+FAIL 8001/portfolio: timed out
+200 8001/strategy-comparison/AAPL?period=1m
+200 8001/strategy-comparison/AAPL/live-price
+200 8001/health/detailed
+
+=== REDIS STATE ===
+portfolio:current:state: EXISTS
+portfolio:drawdown:current: EXISTS
+pipeline:running: MISSING
+
+=== ALPACA ACCOUNT STATUS ===
+Account type: PAPER TRADING
+Cash: $100000.00
+Portfolio value: $100000.00

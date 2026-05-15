@@ -18,7 +18,7 @@ import asyncio
 import json
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any, TypedDict
 
 import httpx
@@ -321,24 +321,27 @@ async def store_signals_node(state: MacroState) -> dict[str, Any]:
         engine = create_engine(settings.postgres_url, future=True)
         session_factory = sessionmaker(bind=engine, expire_on_commit=False)
         with session_factory() as session:
-            for s in state.get("signals", []):
-                # We store them as a single string for DB compatibility, or if DB is JSON
-                aff_sectors = s.get("affected_sectors", [])
-                
-                record = MacroSignal(
-                    id=uuid.uuid4(),
-                    signal_name=s.get("signal_name", "MacroEvent")[:60],
-                    signal_value=0.0, # LLM signals are qualitative
-                    signal_direction=s.get("signal_direction", "neutral"),
-                    affected_sectors={"sectors": aff_sectors},
-                    affected_tickers={"implications": state.get("ticker_implications", {})},
-                    severity=s.get("severity", "medium"),
-                    description=s.get("description", ""),
-                    detected_at=now,
-                    expires_at=now + timedelta(days=30)
-                )
-                session.add(record)
-            session.commit()
+            try:
+                for s in state.get("signals", []):
+                    aff_sectors = s.get("affected_sectors", [])
+                    
+                    record = MacroSignal(
+                        id=uuid.uuid4(),
+                        signal_name=s.get("signal_name", "MacroEvent")[:60],
+                        signal_value=0.0,
+                        signal_direction=s.get("signal_direction", "neutral"),
+                        affected_sectors={"sectors": aff_sectors},
+                        affected_tickers={"implications": state.get("ticker_implications", {})},
+                        severity=s.get("severity", "medium"),
+                        description=s.get("description", ""),
+                        detected_at=now,
+                        expires_at=now + timedelta(days=30)
+                    )
+                    session.add(record)
+                session.commit()
+            except Exception as e:
+                session.rollback()
+                raise e
         engine.dispose()
     except Exception as exc:
         logger.error("Failed to store MacroSignal to DB: {}", exc)

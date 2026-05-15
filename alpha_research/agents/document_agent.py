@@ -118,7 +118,8 @@ async def search_filings_node(state: DocumentState) -> dict[str, Any]:
             )
             resp.raise_for_status()
             api_results = resp.json()
-            for art in api_results:
+            articles = api_results.get("results", api_results) if isinstance(api_results, dict) else api_results
+            for art in articles:
                 retrieved.append({
                     "url": art.get("url"),
                     "source": art.get("source", "api"),
@@ -351,14 +352,17 @@ async def store_insights_node(state: DocumentState) -> dict[str, Any]:
                 description=description[:2000],
                 status="pending",
                 conviction_score=0.5, # Default placeholder
-                supporting_data={
+                expected_direction="neutral",
+                expected_timeframe="n/a",
+                supporting_signals={
                     "risks": state.get("risk_mentions", []),
                     "opportunities": state.get("opportunity_mentions", []),
                     "quotes": state.get("key_quotes", []),
                     "tone": state.get("management_tone", "neutral")
                 },
                 created_at=now,
-                updated_at=now
+                updated_at=now,
+                created_by_agent="DocumentAgent"
             )
             session.add(record)
             session.commit()

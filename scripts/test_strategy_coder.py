@@ -6,7 +6,7 @@ from loguru import logger
 # Add root to pythonpath if needed
 sys.path.append(".")
 
-from signal_generation.agents.strategy_coder_agent import StrategyCoder
+from signal_generation.agents.strategy_coder_agent import StrategyCoderAgent
 
 async def main():
     logger.info("Starting StrategyCoder test...")
@@ -21,7 +21,7 @@ async def main():
         "description": "AAPL has shown strong momentum breaking above the 50-day moving average on high volume."
     }
     
-    coder = StrategyCoder()
+    coder = StrategyCoderAgent()
     result = await coder.generate(mock_hypothesis)
     
     logger.info("Test finished.")

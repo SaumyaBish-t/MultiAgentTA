@@ -1,6 +1,6 @@
 import asyncio
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy import create_engine, text
 from config.settings import settings
 
@@ -20,7 +20,7 @@ def seed_prices():
             'SPY': 500.0
         }
         
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         for ticker in tickers:
             base_price = prices[ticker]
             # Seed 260 days of history

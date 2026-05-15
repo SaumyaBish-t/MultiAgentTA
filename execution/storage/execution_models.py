@@ -23,10 +23,10 @@ class Order(FundamentalBase):
     rebalance_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("rebalance_events.id"), nullable=True)
     signal_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("trading_signals.id"), nullable=True)
     
-    ticker: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
+    ticker: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
     broker_order_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     order_type: Mapped[str] = mapped_column(String(50), nullable=False) # market/limit/stop/twap/vwap
-    action: Mapped[str] = mapped_column(String(10), nullable=False)      # buy/sell/close
+    action: Mapped[str] = mapped_column(String(20), nullable=False)      # buy/sell/close
     
     requested_shares: Mapped[int] = mapped_column(Integer, nullable=False)
     requested_price: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
@@ -41,7 +41,7 @@ class Order(FundamentalBase):
     filled_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     cancelled_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     
-    time_in_force: Mapped[str] = mapped_column(String(10), nullable=False) # day/gtc/opg/cls/ioc/fok
+    time_in_force: Mapped[str] = mapped_column(String(20), nullable=False) # day/gtc/opg/cls/ioc/fok
     extended_hours: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     
     slippage_pct: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
@@ -63,13 +63,13 @@ class Execution(FundamentalBase):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     order_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("orders.id"), nullable=False)
-    ticker: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
+    ticker: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
     
     execution_price: Mapped[float] = mapped_column(Float, nullable=False)
     execution_shares: Mapped[int] = mapped_column(Integer, nullable=False)
     execution_value: Mapped[float] = mapped_column(Float, nullable=False)
     
-    side: Mapped[str] = mapped_column(String(10), nullable=False)        # buy/sell
+    side: Mapped[str] = mapped_column(String(20), nullable=False)        # buy/sell
     venue: Mapped[Optional[str]] = mapped_column(String(100), nullable=True) # exchange/dark_pool/otc
     
     executed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -108,7 +108,7 @@ class ExecutionPerformance(FundamentalBase):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     order_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("orders.id"), nullable=False)
-    ticker: Mapped[str] = mapped_column(String(10), nullable=False)
+    ticker: Mapped[str] = mapped_column(String(20), nullable=False)
     
     implementation_shortfall: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     arrival_price: Mapped[float] = mapped_column(Float, nullable=False)

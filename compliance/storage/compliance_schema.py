@@ -17,7 +17,7 @@ audit_log = Table(
     # enum: order_submitted/order_filled/order_cancelled/position_opened/position_closed/signal_approved/signal_rejected/risk_breach/circuit_breaker/rebalance/hypothesis_generated/backtest_completed/parameter_changed/system_startup/system_shutdown/compliance_check/rule_violation/alert_sent/human_override/emergency_action
     Column("entity_type", String(50), nullable=False), # order/position/signal/portfolio/risk/system
     Column("entity_id", UUID(as_uuid=True), nullable=True),
-    Column("ticker", String(10), nullable=True, index=True),
+    Column("ticker", String(20), nullable=True, index=True),
     Column("action", String(255), nullable=False),
     Column("actor", String(100), nullable=False), # which agent/pipeline did this
     Column("details", JSON, nullable=False),
@@ -58,7 +58,7 @@ compliance_checks = Table(
     Column("rule_id", String(100), ForeignKey("compliance_rules.rule_id"), nullable=False),
     Column("entity_type", String(50), nullable=False),
     Column("entity_id", UUID(as_uuid=True), nullable=True),
-    Column("ticker", String(10), nullable=True),
+    Column("ticker", String(20), nullable=True),
     Column("check_result", String(20), nullable=False), # pass/warning/violation
     Column("current_value", Float, nullable=True),
     Column("threshold_value", Float, nullable=True),
@@ -78,7 +78,7 @@ rule_violations = Table(
     Column("compliance_check_id", UUID(as_uuid=True), ForeignKey("compliance_checks.id"), nullable=False),
     Column("rule_id", String(100), nullable=False),
     Column("violation_type", String(50), nullable=False),
-    Column("ticker", String(10), nullable=True),
+    Column("ticker", String(20), nullable=True),
     Column("severity", String(20), nullable=False),
     Column("description", Text, nullable=False),
     Column("current_value", Float, nullable=False),
@@ -100,7 +100,7 @@ restricted_list = Table(
     "restricted_list",
     metadata,
     Column("id", UUID(as_uuid=True), primary_key=True, default=uuid.uuid4),
-    Column("ticker", String(10), nullable=False, index=True),
+    Column("ticker", String(20), nullable=False, index=True),
     Column("restriction_type", String(50), nullable=False), # no_trade/no_buy/no_sell/reduce_only/enhanced_monitoring
     Column("reason", String(255), nullable=False),
     Column("added_by", String(100), nullable=False), # system/human
@@ -139,7 +139,7 @@ wash_sale_tracker = Table(
     "wash_sale_tracker",
     metadata,
     Column("id", UUID(as_uuid=True), primary_key=True, default=uuid.uuid4),
-    Column("ticker", String(10), nullable=False, index=True),
+    Column("ticker", String(20), nullable=False, index=True),
     Column("sold_at", DateTime(timezone=True), nullable=False),
     Column("sold_price", Float, nullable=False),
     Column("sold_shares", Integer, nullable=False),
@@ -161,7 +161,7 @@ pattern_day_trade_tracker = Table(
     Column("id", UUID(as_uuid=True), primary_key=True, default=uuid.uuid4),
     Column("account_id", String(100), nullable=False),
     Column("trade_date", Date, nullable=False, index=True),
-    Column("ticker", String(10), nullable=False),
+    Column("ticker", String(20), nullable=False),
     Column("buy_order_id", UUID(as_uuid=True), nullable=True),
     Column("sell_order_id", UUID(as_uuid=True), nullable=True),
     Column("is_day_trade", Boolean, default=False),

@@ -4,14 +4,15 @@ from alpha_research.pipeline.research_pipeline import ResearchPipeline
 
 @pytest.mark.asyncio
 async def test_full_pipeline_single_ticker_aapl(mocker):
-    mocker.patch('alpha_research.pipeline.research_pipeline.MarketDataAgent.analyze', 
+    mocker.patch('alpha_research.pipeline.research_pipeline.TechnicalAgent.analyze', 
                  return_value={"ticker": "AAPL", "volatility": "high"})
-    mocker.patch('alpha_research.pipeline.research_pipeline.NewsSentimentAgent.analyze', 
+    mocker.patch('alpha_research.pipeline.research_pipeline.SentimentAgent.analyze', 
                  return_value={"ticker": "AAPL", "sentiment": "bullish"})
     mocker.patch('alpha_research.pipeline.research_pipeline.FundamentalAgent.analyze', 
                  return_value={"ticker": "AAPL", "value": "undervalued"})
-    mocker.patch('alpha_research.pipeline.research_pipeline.HypothesisAgent.generate_hypothesis', 
-                 return_value={"ticker": "AAPL", "status": "generated"})
+    mocker.patch('alpha_research.pipeline.research_pipeline.HypothesisAgent.generate', 
+                 return_value=None)
+
                  
     pipeline = ResearchPipeline()
     res = await pipeline.run(tickers=["AAPL"])

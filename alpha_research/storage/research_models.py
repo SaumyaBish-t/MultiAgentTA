@@ -63,7 +63,7 @@ class ResearchHypothesis(FundamentalBase):
         comment="Unique hypothesis identifier (UUID v4)",
     )
     ticker: Mapped[str] = mapped_column(
-        String(10), nullable=False, index=True,
+        String(20), nullable=False, index=True,
         comment="Equity / ETF symbol, e.g. AAPL",
     )
     hypothesis_type: Mapped[str] = mapped_column(
@@ -83,7 +83,7 @@ class ResearchHypothesis(FundamentalBase):
         comment="Agent confidence 0.00 → 1.00",
     )
     expected_direction: Mapped[str] = mapped_column(
-        String(10), nullable=False,
+        String(20), nullable=False,
         comment="long | short | neutral",
     )
     expected_timeframe: Mapped[str] = mapped_column(
@@ -154,7 +154,7 @@ class SentimentScore(FundamentalBase):
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4,
     )
     ticker: Mapped[str] = mapped_column(
-        String(10), nullable=False, index=True,
+        String(20), nullable=False, index=True,
     )
     source: Mapped[str] = mapped_column(
         String(30), nullable=False,
@@ -219,10 +219,10 @@ class TechnicalSignal(FundamentalBase):
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4,
     )
     ticker: Mapped[str] = mapped_column(
-        String(10), nullable=False, index=True,
+        String(20), nullable=False, index=True,
     )
     timeframe: Mapped[str] = mapped_column(
-        String(10), nullable=False,
+        String(20), nullable=False,
         comment="Bar resolution: 1min, 5min, 1h, 1d, etc.",
     )
     signal_type: Mapped[str] = mapped_column(
@@ -238,7 +238,7 @@ class TechnicalSignal(FundamentalBase):
         comment="Raw indicator reading at detection",
     )
     signal_direction: Mapped[str] = mapped_column(
-        String(10), nullable=False,
+        String(20), nullable=False,
         comment="bullish | bearish | neutral",
     )
     strength: Mapped[float] = mapped_column(
@@ -293,7 +293,7 @@ class FundamentalScore(FundamentalBase):
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4,
     )
     ticker: Mapped[str] = mapped_column(
-        String(10), nullable=False, index=True,
+        String(20), nullable=False, index=True,
     )
     score_type: Mapped[str] = mapped_column(
         String(15), nullable=False,
@@ -375,7 +375,7 @@ class MacroSignal(FundamentalBase):
         comment="Quantified signal reading",
     )
     signal_direction: Mapped[str] = mapped_column(
-        String(10), nullable=False,
+        String(20), nullable=False,
         comment="bullish | bearish | neutral",
     )
     affected_sectors: Mapped[dict | None] = mapped_column(
@@ -387,7 +387,7 @@ class MacroSignal(FundamentalBase):
         comment="Specific tickers affected",
     )
     severity: Mapped[str] = mapped_column(
-        String(10), nullable=False,
+        String(20), nullable=False,
         comment="low | medium | high | critical",
     )
     description: Mapped[str | None] = mapped_column(
@@ -456,8 +456,8 @@ class ResearchRun(FundamentalBase):
         comment="Total wall-clock time in seconds",
     )
     status: Mapped[str] = mapped_column(
-        String(15), nullable=False, server_default="running",
-        comment="running | completed | failed",
+        String(30), nullable=False, server_default="running",
+        comment="running | completed | failed | completed_with_errors",
     )
     error_message: Mapped[str | None] = mapped_column(
         Text, nullable=True,

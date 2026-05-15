@@ -13,10 +13,10 @@ from sqlalchemy.orm import sessionmaker
 from langgraph.graph import StateGraph, END
 
 from config.settings import settings
-from risk_management.agents.risk_gate_agent import RiskGate, RiskDecision
+from risk_management.agents.risk_gate_agent import RiskGateAgent, RiskDecision
 from risk_management.agents.var_agent import VaRAgent
 from risk_management.agents.correlation_agent import CorrelationAgent
-from risk_management.agents.drawdown_monitor_agent import DrawdownMonitor
+from risk_management.agents.drawdown_monitor_agent import DrawdownMonitorAgent
 from signal_generation.storage.signal_models import TradingSignal
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -113,7 +113,7 @@ async def evaluate_signals_sequentially_node(state: RiskPipelineState) -> dict[s
     rejected = []
     evaluated = []
     
-    risk_gate = RiskGate()
+    risk_gate = RiskGateAgent()
     
     for signal in incoming:
         decision = await risk_gate.evaluate(signal)
@@ -156,7 +156,7 @@ async def run_continuous_monitoring_node(state: RiskPipelineState) -> dict[str, 
     if state.get("error"): return {}
     
     # We just run one iteration of the drawdown monitor rather than blocking the pipeline
-    monitor = DrawdownMonitor()
+    monitor = DrawdownMonitorAgent()
     result = await monitor.run()
     
     if result.alert_level in ['orange', 'red']:
@@ -299,7 +299,7 @@ class RiskPipeline:
 
     def get_approved_signals(self) -> list[dict]:
         """Fetch approved signals awaiting execution."""
-        gate = RiskGate()
+        gate = RiskGateAgent()
         return gate.get_approved_signals()
 
     def get_portfolio_risk_snapshot(self) -> dict:

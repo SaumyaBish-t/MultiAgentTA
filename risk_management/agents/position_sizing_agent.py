@@ -1,7 +1,7 @@
 import json
 import uuid
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TypedDict, Any, Optional
 from dataclasses import dataclass
 import math
@@ -301,7 +301,7 @@ async def store_position_limit_node(state: PositionSizingState) -> dict[str, Any
                 kelly_fraction=kelly_frac,
                 volatility_scalar=None,
                 approved=True,
-                approved_at=datetime.utcnow()
+                approved_at=datetime.now(timezone.utc)
             )
             session.add(limit)
             session.commit()
@@ -362,7 +362,7 @@ class PositionSize:
     adjustments_applied: list[str]
     approved: bool
 
-class PositionSizer:
+class PositionSizerAgent:
     """Public interface for Risk Management position sizing."""
     
     def __init__(self):

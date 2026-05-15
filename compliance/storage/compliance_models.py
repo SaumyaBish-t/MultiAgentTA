@@ -15,7 +15,7 @@ class AuditLog(Base):
     event_type: Mapped[str] = mapped_column(String(50), index=True)
     entity_type: Mapped[str] = mapped_column(String(50))
     entity_id: Mapped[Optional[UUID]] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
-    ticker: Mapped[Optional[str]] = mapped_column(String(10), nullable=True, index=True)
+    ticker: Mapped[Optional[str]] = mapped_column(String(20), nullable=True, index=True)
     action: Mapped[str] = mapped_column(String(255))
     actor: Mapped[str] = mapped_column(String(100))
     details: Mapped[Dict[str, Any]] = mapped_column(JSON)
@@ -48,7 +48,7 @@ class ComplianceCheck(Base):
     rule_id: Mapped[str] = mapped_column(String(100), ForeignKey("compliance_rules.rule_id"))
     entity_type: Mapped[str] = mapped_column(String(50))
     entity_id: Mapped[Optional[UUID]] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
-    ticker: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+    ticker: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     check_result: Mapped[str] = mapped_column(String(20))
     current_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     threshold_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
@@ -64,7 +64,7 @@ class RuleViolation(Base):
     compliance_check_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("compliance_checks.id"))
     rule_id: Mapped[str] = mapped_column(String(100))
     violation_type: Mapped[str] = mapped_column(String(50))
-    ticker: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+    ticker: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     severity: Mapped[str] = mapped_column(String(20))
     description: Mapped[str] = mapped_column(Text)
     current_value: Mapped[float] = mapped_column(Float)
@@ -82,7 +82,7 @@ class RestrictedList(Base):
     __tablename__ = "restricted_list"
     
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True)
-    ticker: Mapped[str] = mapped_column(String(10), index=True)
+    ticker: Mapped[str] = mapped_column(String(20), index=True)
     restriction_type: Mapped[str] = mapped_column(String(50))
     reason: Mapped[str] = mapped_column(String(255))
     added_by: Mapped[str] = mapped_column(String(100))
@@ -113,7 +113,7 @@ class WashSaleTracker(Base):
     __tablename__ = "wash_sale_tracker"
     
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True)
-    ticker: Mapped[str] = mapped_column(String(10), index=True)
+    ticker: Mapped[str] = mapped_column(String(20), index=True)
     sold_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     sold_price: Mapped[float] = mapped_column(Float)
     sold_shares: Mapped[int] = mapped_column(Integer)
@@ -131,7 +131,7 @@ class PatternDayTradeTracker(Base):
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True)
     account_id: Mapped[str] = mapped_column(String(100))
     trade_date: Mapped[date] = mapped_column(Date, index=True)
-    ticker: Mapped[str] = mapped_column(String(10))
+    ticker: Mapped[str] = mapped_column(String(20))
     buy_order_id: Mapped[Optional[UUID]] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
     sell_order_id: Mapped[Optional[UUID]] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
     is_day_trade: Mapped[bool] = mapped_column(Boolean, default=False)

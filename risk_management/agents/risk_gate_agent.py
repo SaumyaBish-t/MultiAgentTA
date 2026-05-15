@@ -1,6 +1,6 @@
 import json
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 from typing import TypedDict, Any, Optional
 from dataclasses import dataclass
@@ -19,11 +19,11 @@ from signal_generation.storage.signal_models import TradingSignal
 from risk_management.storage.risk_models import ApprovedSignal, RiskEvent
 
 # Import the other risk agents
-from risk_management.agents.position_sizing_agent import PositionSizer
+from risk_management.agents.position_sizing_agent import PositionSizerAgent
 from risk_management.agents.var_agent import VaRAgent
 from risk_management.agents.correlation_agent import CorrelationAgent
 from risk_management.agents.liquidity_agent import LiquidityAgent
-from risk_management.agents.drawdown_monitor_agent import DrawdownMonitor
+from risk_management.agents.drawdown_monitor_agent import DrawdownMonitorAgent
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # SECTION 1 — STATE
@@ -59,11 +59,11 @@ async def run_all_risk_checks_node(state: RiskGateState) -> dict[str, Any]:
         
     try:
         # Initialize agents
-        position_sizer = PositionSizer()
+        position_sizer = PositionSizerAgent()
         var_agent = VaRAgent()
         correlation_agent = CorrelationAgent()
         liquidity_agent = LiquidityAgent()
-        drawdown_monitor = DrawdownMonitor()
+        drawdown_monitor = DrawdownMonitorAgent()
         
         # We need current portfolio positions for correlation
         r = redis.from_url(settings.redis_url, decode_responses=True)
@@ -344,8 +344,8 @@ async def store_decision_node(state: RiskGateState) -> dict[str, Any]:
                     approval_reason=state.get("risk_summary", "Approved by Risk Gate"),
                     status="approved",
                     conditions={"conditions": state.get("approval_conditions", [])},
-                    valid_until=datetime.utcnow(),
-                    approved_at=datetime.utcnow()
+                    valid_until=datetime.now(timezone.utc),
+                    approved_at=datetime.now(timezone.utc)
                 )
                 session.add(app_sig)
                 
@@ -445,7 +445,7 @@ class RiskDecision:
     risk_summary: str
     evaluated_at: datetime
 
-class RiskGate:
+class RiskGateAgent:
     """The master Risk Orchestrator that combines all individual risk checks."""
     
     def __init__(self):
@@ -483,7 +483,7 @@ class RiskGate:
                 approval_conditions=final_state.get("approval_conditions", []),
                 rejection_reasons=final_state.get("rejection_reasons", []),
                 risk_summary=final_state.get("risk_summary", ""),
-                evaluated_at=datetime.utcnow()
+                evaluated_at=datetime.now(timezone.utc)
             )
         except Exception as e:
             logger.exception("Risk Gate evaluation failed completely")
@@ -497,7 +497,7 @@ class RiskGate:
                 approval_conditions=[],
                 rejection_reasons=[f"SYSTEM_ERROR: {str(e)}"],
                 risk_summary="",
-                evaluated_at=datetime.utcnow()
+                evaluated_at=datetime.now(timezone.utc)
             )
 
     async def evaluate_batch(self, signals: list[dict]) -> list[RiskDecision]:

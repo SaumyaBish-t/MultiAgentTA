@@ -68,7 +68,7 @@ class PnLAttribution(Base):
     
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     attribution_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
-    ticker: Mapped[str] = mapped_column(String(10), nullable=False)
+    ticker: Mapped[str] = mapped_column(String(20), nullable=False)
     signal_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
     strategy_type: Mapped[str] = mapped_column(String(50), nullable=False)
     contribution_pct: Mapped[float] = mapped_column(Float, nullable=False)
@@ -85,10 +85,10 @@ class SignalLivePerformance(Base):
     
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     signal_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
-    ticker: Mapped[str] = mapped_column(String(10), nullable=False)
+    ticker: Mapped[str] = mapped_column(String(20), nullable=False)
     tracking_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
-    predicted_direction: Mapped[str] = mapped_column(String(10), nullable=False)
-    actual_direction: Mapped[str] = mapped_column(String(10), nullable=False)
+    predicted_direction: Mapped[str] = mapped_column(String(20), nullable=False)
+    actual_direction: Mapped[str] = mapped_column(String(20), nullable=False)
     predicted_return: Mapped[float] = mapped_column(Float, nullable=False)
     actual_return: Mapped[float] = mapped_column(Float, nullable=False)
     hit: Mapped[bool] = mapped_column(Boolean, nullable=False)

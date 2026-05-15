@@ -16,10 +16,10 @@ orders = Table(
     Column("portfolio_position_id", UUID(as_uuid=True), ForeignKey("portfolio_positions.id"), nullable=True),
     Column("rebalance_id", UUID(as_uuid=True), ForeignKey("rebalance_events.id"), nullable=True),
     Column("signal_id", UUID(as_uuid=True), ForeignKey("trading_signals.id"), nullable=True),
-    Column("ticker", String(10), nullable=False, index=True),
+    Column("ticker", String(20), nullable=False, index=True),
     Column("broker_order_id", String(255), nullable=True),
     Column("order_type", String(50), nullable=False),  # market/limit/stop/twap/vwap
-    Column("action", String(10), nullable=False),      # buy/sell/close
+    Column("action", String(20), nullable=False),      # buy/sell/close
     Column("requested_shares", Integer, nullable=False),
     Column("requested_price", Float, nullable=True),
     Column("filled_shares", Integer, default=0, nullable=False),
@@ -29,7 +29,7 @@ orders = Table(
     Column("submitted_at", DateTime(timezone=True), nullable=True),
     Column("filled_at", DateTime(timezone=True), nullable=True),
     Column("cancelled_at", DateTime(timezone=True), nullable=True),
-    Column("time_in_force", String(10), nullable=False), # day/gtc/opg/cls/ioc/fok
+    Column("time_in_force", String(20), nullable=False), # day/gtc/opg/cls/ioc/fok
     Column("extended_hours", Boolean, default=False, nullable=False),
     Column("slippage_pct", Float, nullable=True),
     Column("commission_paid", Float, default=0, nullable=False),
@@ -46,11 +46,11 @@ executions = Table(
     metadata,
     Column("id", UUID(as_uuid=True), primary_key=True, default=uuid.uuid4),
     Column("order_id", UUID(as_uuid=True), ForeignKey("orders.id"), nullable=False),
-    Column("ticker", String(10), nullable=False, index=True),
+    Column("ticker", String(20), nullable=False, index=True),
     Column("execution_price", Float, nullable=False),
     Column("execution_shares", Integer, nullable=False),
     Column("execution_value", Float, nullable=False),
-    Column("side", String(10), nullable=False),        # buy/sell
+    Column("side", String(20), nullable=False),        # buy/sell
     Column("venue", String(100), nullable=True),       # exchange/dark_pool/otc
     Column("executed_at", DateTime(timezone=True), nullable=False),
     Column("settlement_date", Date, nullable=False),
@@ -84,7 +84,7 @@ execution_performance = Table(
     metadata,
     Column("id", UUID(as_uuid=True), primary_key=True, default=uuid.uuid4),
     Column("order_id", UUID(as_uuid=True), ForeignKey("orders.id"), nullable=False),
-    Column("ticker", String(10), nullable=False),
+    Column("ticker", String(20), nullable=False),
     Column("implementation_shortfall", Float, nullable=True),
     Column("arrival_price", Float, nullable=False),
     Column("execution_price", Float, nullable=False),

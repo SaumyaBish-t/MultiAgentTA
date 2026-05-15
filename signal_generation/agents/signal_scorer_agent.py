@@ -335,7 +335,7 @@ def store_rankings_node(state: ScorerState) -> dict[str, Any]:
 # ==========================================
 # PUBLIC INTERFACE
 # ==========================================
-class SignalScorer:
+class SignalScorerAgent:
     def __init__(self):
         workflow = StateGraph(ScorerState)
         

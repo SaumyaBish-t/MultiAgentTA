@@ -58,7 +58,7 @@ async def fetch_price_data_node(state: WalkForwardState) -> dict[str, Any]:
             
         df = pd.DataFrame(data)
         if "timestamp" in df.columns:
-            df['timestamp'] = pd.to_datetime(df['timestamp'])
+            df['timestamp'] = pd.to_datetime(df['timestamp'], format='ISO8601', utc=True)
             df.set_index('timestamp', inplace=True)
             df.sort_index(inplace=True)
         else:
@@ -67,6 +67,11 @@ async def fetch_price_data_node(state: WalkForwardState) -> dict[str, Any]:
         # Strip tz to avoid VectorBT issues
         if df.index.tz is not None:
             df.index = df.index.tz_convert(None)
+            
+        for col in ["open", "high", "low", "close", "volume"]:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+        df.ffill(inplace=True)
             
         return {"price_data": {ticker: df}}
     except Exception as e:
@@ -499,7 +504,7 @@ def store_results_node(state: WalkForwardState) -> dict[str, Any]:
         return {"error": str(e)}
 
 
-class WalkForwardValidator:
+class WalkForwardAgent:
     def __init__(self):
         # Build LangGraph
         workflow = StateGraph(WalkForwardState)

@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy import create_engine, text
 from config.settings import settings
 
@@ -27,8 +27,8 @@ def seed():
                 "pct": size / 100000.0,
                 "size": size,
                 "risk": risk,
-                "now": datetime.utcnow(),
-                "until": datetime.utcnow() + timedelta(days=1)
+                "now": datetime.now(timezone.utc),
+                "until": datetime.now(timezone.utc) + timedelta(days=1)
             })
         conn.commit()
         print(f"Seeded {len(tickers)} approved signals.")

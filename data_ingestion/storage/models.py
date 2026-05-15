@@ -72,7 +72,7 @@ class OhlcvBar(TimescaleBase):
     __tablename__ = "ohlcv_bars"
 
     ticker: Mapped[str] = mapped_column(
-        String(10), primary_key=True, nullable=False, index=True,
+        String(20), primary_key=True, nullable=False, index=True,
         comment="Equity / ETF symbol, e.g. AAPL",
     )
     timestamp: Mapped[datetime] = mapped_column(
@@ -103,7 +103,7 @@ class OhlcvBar(TimescaleBase):
         comment="Number of transactions in the bar",
     )
     timeframe: Mapped[str] = mapped_column(
-        String(10), primary_key=True, nullable=False, index=True,
+        String(20), primary_key=True, nullable=False, index=True,
         comment="Bar resolution: 1min, 5min, 15min, 1h, 4h, 1d, 1w",
     )
     source: Mapped[str] = mapped_column(
@@ -144,7 +144,7 @@ class RawTick(TimescaleBase):
     __tablename__ = "raw_ticks"
 
     ticker: Mapped[str] = mapped_column(
-        String(10), primary_key=True, nullable=False, index=True,
+        String(20), primary_key=True, nullable=False, index=True,
     )
     timestamp: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), primary_key=True, nullable=False, index=True,
@@ -161,7 +161,7 @@ class RawTick(TimescaleBase):
         comment="Trade condition codes (SIP/exchange specific)",
     )
     exchange: Mapped[str | None] = mapped_column(
-        String(10), nullable=True,
+        String(20), nullable=True,
         comment="Exchange or venue code",
     )
 
@@ -187,7 +187,7 @@ class Company(FundamentalBase):
     __tablename__ = "companies"
 
     ticker: Mapped[str] = mapped_column(
-        String(10), primary_key=True,
+        String(20), primary_key=True,
         comment="Primary equity symbol",
     )
     name: Mapped[str] = mapped_column(
@@ -230,10 +230,10 @@ class IncomeStatement(FundamentalBase):
         BigInteger, primary_key=True, autoincrement=True,
     )
     ticker: Mapped[str] = mapped_column(
-        String(10), nullable=False, index=True,
+        String(20), nullable=False, index=True,
     )
     period_type: Mapped[str] = mapped_column(
-        String(10), nullable=False,
+        String(20), nullable=False,
         comment="'annual' or 'quarterly'",
     )
     fiscal_date: Mapped[datetime] = mapped_column(
@@ -276,13 +276,13 @@ class BalanceSheet(FundamentalBase):
         BigInteger, primary_key=True, autoincrement=True,
     )
     ticker: Mapped[str] = mapped_column(
-        String(10), nullable=False, index=True,
+        String(20), nullable=False, index=True,
     )
     fiscal_date: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False,
     )
     period_type: Mapped[str] = mapped_column(
-        String(10), nullable=False,
+        String(20), nullable=False,
         comment="'annual' or 'quarterly'",
     )
     total_assets: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
@@ -325,7 +325,7 @@ class NewsArticle(FundamentalBase):
         BigInteger, primary_key=True, autoincrement=True,
     )
     tickers: Mapped[list[str] | None] = mapped_column(
-        ARRAY(String(10)), nullable=True,
+        ARRAY(String(20)), nullable=True,
         comment="Related equity symbols",
     )
     headline: Mapped[str] = mapped_column(Text, nullable=False)
@@ -417,7 +417,7 @@ class DataAnomaly(FundamentalBase):
         BigInteger, primary_key=True, autoincrement=True,
     )
     ticker: Mapped[str | None] = mapped_column(
-        String(10), nullable=True, index=True,
+        String(20), nullable=True, index=True,
         comment="Ticker associated with the anomaly (if applicable)",
     )
     timestamp: Mapped[datetime] = mapped_column(

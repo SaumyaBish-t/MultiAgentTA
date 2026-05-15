@@ -1,7 +1,7 @@
 import json
 import asyncio
 import math
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from collections import defaultdict
 from typing import TypedDict, Any, Optional
 from dataclasses import dataclass
@@ -155,9 +155,13 @@ async def calculate_sector_concentration_node(state: CorrelationState) -> dict[s
     
     with Session() as session:
         for ticker, weight in weights.items():
-            comp = session.execute(select(Company).where(Company.ticker == ticker)).scalar_one_or_none()
-            sector = comp.sector if comp and comp.sector else "Unknown"
-            sector_exposures[sector] += weight
+            try:
+                comp = session.execute(select(Company).where(Company.ticker == ticker)).scalar()
+                sector = comp.sector if comp and comp.sector else "Unknown"
+                sector_exposures[sector] += weight
+            except Exception as e:
+                logger.warning(f"Failed to fetch sector for {ticker}: {e}")
+                sector_exposures["Unknown"] += weight
             
     max_sector_pct = 0.30
     for sector, exposure in sector_exposures.items():
@@ -204,12 +208,15 @@ async def calculate_factor_exposures_node(state: CorrelationState) -> dict[str, 
     
     with Session() as session:
         for ticker, weight in weights.items():
-            comp = session.execute(select(Company).where(Company.ticker == ticker)).scalar_one_or_none()
-            if comp and comp.market_cap:
-                if comp.market_cap > 10_000_000_000:
-                    large_cap_pct += weight
-                elif comp.market_cap < 2_000_000_000:
-                    small_cap_pct += weight
+            try:
+                comp = session.execute(select(Company).where(Company.ticker == ticker)).scalar()
+                if comp and comp.market_cap:
+                    if comp.market_cap > 10_000_000_000:
+                        large_cap_pct += weight
+                    elif comp.market_cap < 2_000_000_000:
+                        small_cap_pct += weight
+            except Exception as e:
+                logger.warning(f"Failed to fetch market cap for {ticker}: {e}")
                     
     # Momentum (last 252 days total return approximation)
     port_momentum = 0.0
@@ -318,30 +325,35 @@ async def store_results_node(state: CorrelationState) -> dict[str, Any]:
     
     # 1. DB Save
     with Session() as session:
-        # Create CorrelationMatrixSnapshot
-        snap = CorrelationMatrixSnapshot(
-            tickers=state["tickers"],
-            correlation_matrix=corr_matrix,
-            avg_correlation=avg_corr,
-            max_correlation=max(p["correlation"] for p in high_pairs) if high_pairs else avg_corr,
-            high_correlation_pairs=high_pairs,
-            snapshot_date=datetime.utcnow().date()
-        )
-        session.add(snap)
-        
-        # Create RiskEvents for breaches
-        for breach in state.get("breaches", []):
-            event = RiskEvent(
-                event_type="concentration_breach",
-                severity="medium" if "SECTOR" in breach else "high",
-                description=f"Concentration breach: {breach}",
-                current_value=0.0,
-                threshold_value=0.30, # default threshold
-                action_taken="monitor"
+        try:
+            # Create CorrelationMatrixSnapshot
+            snap = CorrelationMatrixSnapshot(
+                tickers=state["tickers"],
+                correlation_matrix=corr_matrix,
+                avg_correlation=avg_corr,
+                max_correlation=max(p["correlation"] for p in high_pairs) if high_pairs else avg_corr,
+                high_correlation_pairs=high_pairs,
+                snapshot_date=datetime.now(timezone.utc).date()
             )
-            session.add(event)
+            session.add(snap)
             
-        session.commit()
+            # Create RiskEvents for breaches
+            for breach in state.get("breaches", []):
+                event = RiskEvent(
+                    event_type="concentration_breach",
+                    severity="medium" if "SECTOR" in breach else "high",
+                    description=f"Concentration breach: {breach}",
+                    current_value=0.0,
+                    threshold_value=0.30, # default threshold
+                    action_taken="monitor"
+                )
+                session.add(event)
+                
+            session.commit()
+        except Exception as e:
+            session.rollback()
+            logger.error(f"Failed to store Correlation results to DB: {e}")
+            raise e
         
     # 2. Redis Cache
     try:

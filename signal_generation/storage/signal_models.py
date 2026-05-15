@@ -28,7 +28,7 @@ class TradingSignal(FundamentalBase):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     hypothesis_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("research_hypotheses.id"), nullable=False)
-    ticker: Mapped[str] = mapped_column(String(10), nullable=False)
+    ticker: Mapped[str] = mapped_column(String(20), nullable=False)
     signal_name: Mapped[str] = mapped_column(String(255), nullable=False)
     signal_type: Mapped[str] = mapped_column(String(50), nullable=False, comment="momentum/mean_reversion/breakout/trend/pairs/event_driven")
     entry_condition: Mapped[str] = mapped_column(Text, nullable=False)
@@ -54,7 +54,7 @@ class BacktestResult(FundamentalBase):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     signal_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("trading_signals.id"), nullable=False)
-    ticker: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
+    ticker: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
     start_date: Mapped[date] = mapped_column(Date, nullable=False)
     end_date: Mapped[date] = mapped_column(Date, nullable=False)
     initial_capital: Mapped[float] = mapped_column(Float, default=100000.0, nullable=False)
@@ -91,7 +91,7 @@ class WalkForwardResult(FundamentalBase):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     signal_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("trading_signals.id"), nullable=False)
-    ticker: Mapped[str] = mapped_column(String(10), nullable=False)
+    ticker: Mapped[str] = mapped_column(String(20), nullable=False)
     n_splits: Mapped[int] = mapped_column(Integer, nullable=False)
     train_pct: Mapped[float] = mapped_column(Float, nullable=False)
     in_sample_sharpe: Mapped[float] = mapped_column(Float, nullable=False)
@@ -125,10 +125,10 @@ class SignalPerformanceLive(FundamentalBase):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     signal_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("trading_signals.id"), nullable=False)
-    ticker: Mapped[str] = mapped_column(String(10), nullable=False)
+    ticker: Mapped[str] = mapped_column(String(20), nullable=False)
     date: Mapped[date] = mapped_column(Date, nullable=False)
-    predicted_direction: Mapped[str] = mapped_column(String(10), nullable=False)
-    actual_direction: Mapped[str] = mapped_column(String(10), nullable=False)
+    predicted_direction: Mapped[str] = mapped_column(String(20), nullable=False)
+    actual_direction: Mapped[str] = mapped_column(String(20), nullable=False)
     predicted_return: Mapped[float] = mapped_column(Float, nullable=False)
     actual_return: Mapped[float] = mapped_column(Float, nullable=False)
     hit: Mapped[bool] = mapped_column(Boolean, nullable=False)

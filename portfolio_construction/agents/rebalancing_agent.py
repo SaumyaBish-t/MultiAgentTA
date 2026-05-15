@@ -170,7 +170,7 @@ async def check_rebalance_triggers_node(state: RebalancingState) -> Dict[str, An
             if res:
                 last_rebalance = res[0]
                 if last_rebalance:
-                    now = datetime.now(timezone.utc) if last_rebalance.tzinfo else datetime.utcnow()
+                    now = datetime.now(timezone.utc) if last_rebalance.tzinfo else datetime.now(timezone.utc)
                     if (now - last_rebalance).days > 30:
                         rebalance_needed = True
                         trigger_type = "scheduled"
@@ -319,49 +319,62 @@ async def store_rebalance_plan_node(state: RebalancingState) -> Dict[str, Any]:
     rebalance_id = uuid.uuid4()
     
     with Session() as session:
-        # Get Portfolio ID
-        stmt = select(Portfolio).where(Portfolio.name == "main_portfolio").limit(1)
-        portfolio = session.execute(stmt).scalar_one_or_none()
-        pf_id = portfolio.id if portfolio else None
-        
-        event = RebalanceEvent(
-            id=rebalance_id,
-            portfolio_id=pf_id,
-            trigger_type=state["trigger_type"],
-            trigger_reason=f"Max drift {state['max_drift']:.2%} exceeds threshold",
-            positions_before=state["current_positions"],
-            positions_after={}, # Final state not known yet
-            trades_required=state["trades_required"],
-            estimated_cost=state["estimated_cost"],
-            estimated_tax_impact=0.0,
-            approved=state["approved"],
-            executed=False,
-            executed_at=datetime.utcnow() if state["approved"] else None,
-            created_at=datetime.utcnow()
-        )
-        session.add(event)
-        session.flush() # Ensure event is persisted so FK works
-        
-        # Store individual cost estimates
-        for t in state["trades_required"]:
-            trade_val = t["estimated_value"]
-            est_cost = trade_val * 0.0006
-            cost = CostEstimate(
-                rebalance_id=rebalance_id,
-                ticker=t["ticker"],
-                action=t["action"],
-                shares=t["shares"],
-                estimated_price=trade_val / t["shares"] if t["shares"] > 0 else 0,
-                commission=0.0,
-                spread_cost=trade_val * 0.0005,
-                market_impact=trade_val * 0.0001,
-                total_cost=est_cost,
-                cost_as_pct_of_trade=0.0006,
-                created_at=datetime.utcnow()
+        try:
+            # Get Portfolio ID
+            stmt = select(Portfolio).where(Portfolio.name == "main_portfolio").limit(1)
+            portfolio = session.execute(stmt).scalar_one_or_none()
+            pf_id = portfolio.id if portfolio else None
+            
+            # Ensure we have a valid portfolio ID if required by schema
+            if not pf_id:
+                logger.error("No 'main_portfolio' found in database. Rebalance event may fail.")
+            
+            now_utc = datetime.now(timezone.utc)
+            
+            event = RebalanceEvent(
+                id=rebalance_id,
+                portfolio_id=pf_id,
+                trigger_type=state["trigger_type"],
+                trigger_reason=f"Max drift {state['max_drift']:.2%} exceeds threshold",
+                positions_before=state["current_positions"],
+                positions_after={}, # Final state not known yet
+                trades_required=state["trades_required"],
+                estimated_cost=state["estimated_cost"],
+                estimated_tax_impact=0.0,
+                approved=state["approved"],
+                executed=False,
+                executed_at=now_utc if state["approved"] else None,
+                created_at=now_utc
             )
-            session.add(cost)
-        
-        session.commit()
+            session.add(event)
+            # Flush here to ensure the ID exists for child records in the same transaction
+            session.flush() 
+            
+            # Store individual cost estimates
+            for t in state["trades_required"]:
+                trade_val = t["estimated_value"]
+                est_cost = trade_val * 0.0006
+                cost = CostEstimate(
+                    id=uuid.uuid4(), # Explicitly set ID
+                    rebalance_id=rebalance_id,
+                    ticker=t["ticker"],
+                    action=t["action"],
+                    shares=t["shares"],
+                    estimated_price=trade_val / t["shares"] if t["shares"] > 0 else 0,
+                    commission=0.0,
+                    spread_cost=trade_val * 0.0005,
+                    market_impact=trade_val * 0.0001,
+                    total_cost=est_cost,
+                    cost_as_pct_of_trade=0.0006,
+                    created_at=now_utc
+                )
+                session.add(cost)
+            
+            session.commit()
+        except Exception as e:
+            session.rollback()
+            logger.error(f"Database error in store_rebalance_plan_node: {e}")
+            raise
         
     # Redis Cache
     try:

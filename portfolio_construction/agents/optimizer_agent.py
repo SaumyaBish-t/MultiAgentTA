@@ -1,7 +1,7 @@
 import json
 import asyncio
 import math
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from typing import TypedDict, Any, Optional, List, Dict
 from dataclasses import dataclass, asdict
 
@@ -486,7 +486,7 @@ async def store_weights_node(state: OptimizerState) -> Dict[str, Any]:
             "method": "blended_optimization",
             "sharpe": metrics["expected_sharpe"],
             "n_positions": metrics["n_positions"],
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
         r.publish("portfolio.weights.calculated", json.dumps(event))
     except Exception as e:

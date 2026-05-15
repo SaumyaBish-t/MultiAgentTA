@@ -30,7 +30,7 @@ class PositionLimit(FundamentalBase):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     signal_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("trading_signals.id"), nullable=False)
-    ticker: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
+    ticker: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
     max_position_size_pct: Mapped[float] = mapped_column(Float, nullable=False)
     max_position_size_usd: Mapped[float] = mapped_column(Float, nullable=False)
     max_shares: Mapped[int] = mapped_column(Integer, nullable=True)
@@ -79,7 +79,7 @@ class RiskEvent(FundamentalBase):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     event_type: Mapped[str] = mapped_column(String(50), nullable=False)
     severity: Mapped[str] = mapped_column(String(20), nullable=False)
-    ticker: Mapped[str] = mapped_column(String(10), nullable=True)
+    ticker: Mapped[str] = mapped_column(String(20), nullable=True)
     signal_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("trading_signals.id"), nullable=True)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     current_value: Mapped[float] = mapped_column(Float, nullable=False)
@@ -97,7 +97,7 @@ class VarCalculation(FundamentalBase):
     __tablename__ = "var_calculations"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    ticker: Mapped[str] = mapped_column(String(10), nullable=True)
+    ticker: Mapped[str] = mapped_column(String(20), nullable=True)
     signal_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("trading_signals.id"), nullable=True)
     calculation_method: Mapped[str] = mapped_column(String(50), nullable=False)
     confidence_level: Mapped[float] = mapped_column(Float, nullable=False)
@@ -151,7 +151,7 @@ class ApprovedSignal(FundamentalBase):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     signal_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("trading_signals.id"), nullable=False)
-    ticker: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
+    ticker: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
     approved_position_size_pct: Mapped[float] = mapped_column(Float, nullable=False)
     approved_position_size_usd: Mapped[float] = mapped_column(Float, nullable=False)
     risk_score: Mapped[float] = mapped_column(Float, nullable=False)

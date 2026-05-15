@@ -21,7 +21,7 @@ import sys
 from datetime import time
 from enum import Enum
 from pathlib import Path
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from loguru import logger
 from pydantic import Field, SecretStr, field_validator
@@ -172,8 +172,10 @@ class Settings(BaseSettings):
     # ── Data Configuration ──────────────────────────────────────
     tickers: list[str] = Field(
         default=[
-            "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA",
-            "TSLA", "JPM", "SPY", "QQQ",
+            # US Markets
+            "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "TSLA", "JPM", "SPY", "QQQ",
+            # Indian Markets (NSE)
+            "RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "INFY.NS", "ICICIBANK.NS"
         ],
         description="Equity / ETF symbols to ingest",
     )

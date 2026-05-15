@@ -117,7 +117,7 @@ async def setup_optimization_node(state: OptimizerState) -> dict[str, Any]:
             
         df = pd.DataFrame(data)
         if "timestamp" in df.columns:
-            df['timestamp'] = pd.to_datetime(df['timestamp'])
+            df['timestamp'] = pd.to_datetime(df['timestamp'], format='ISO8601', utc=True)
             df.set_index('timestamp', inplace=True)
             df.sort_index(inplace=True)
         else:
@@ -125,6 +125,11 @@ async def setup_optimization_node(state: OptimizerState) -> dict[str, Any]:
             
         if df.index.tz is not None:
             df.index = df.index.tz_convert(None)
+            
+        for col in ["open", "high", "low", "close", "volume"]:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+        df.ffill(inplace=True)
             
         # Split: First 18 months Optimization, Last 6 months Validation
         total_days = len(df)
@@ -459,7 +464,7 @@ def store_results_node(state: OptimizerState) -> dict[str, Any]:
 def route_optimization(state: OptimizerState) -> str:
     return state.get("optimization_method", "grid")
 
-class ParameterOptimizer:
+class OptimizerAgent:
     def __init__(self):
         workflow = StateGraph(OptimizerState)
         
