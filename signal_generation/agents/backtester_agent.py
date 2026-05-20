@@ -406,8 +406,6 @@ async def apply_quality_filters_node(state: BacktesterState) -> dict[str, Any]:
     hard_fail = []
     if ret <= 0:
         hard_fail.append("NEGATIVE_RETURN")
-    if excess <= 0:
-        hard_fail.append("UNDERPERFORMS_BENCHMARK")
     if dd < -40:
         hard_fail.append("CATASTROPHIC_DRAWDOWN")
     if trades < 5:
@@ -432,9 +430,18 @@ async def apply_quality_filters_node(state: BacktesterState) -> dict[str, Any]:
     if dd >= -10:       score += 8
     elif dd >= -20:     score += 5
     elif dd >= -30:     score += 2
-    if excess >= 15:    score += 7
-    elif excess >= 5:   score += 4
+    # Beating the benchmark is rewarded; trailing it is a heavy penalty
+    # but not an outright disqualifier (NEGATIVE_RETURN already fails
+    # money-losers). A strategy that made money but trailed buy-and-hold
+    # is a weak candidate, not garbage.
+    if excess >= 15:    score += 8
+    elif excess >= 5:   score += 5
     elif excess > 0:    score += 2
+    elif excess > -10:  score -= 12
+    else:               score -= 22
+    score = max(0, score)
+    if excess <= 0:
+        reasons.append("UNDERPERFORMS_BENCHMARK")
 
     if hard_fail:
         grade = "D"
