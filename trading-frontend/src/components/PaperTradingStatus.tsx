@@ -48,7 +48,7 @@ export const PaperTradingStatus: React.FC = () => {
           <div className="space-y-2 text-sm">
             <div className="flex justify-between border-b border-slate-700/50 pb-1">
               <span className="text-slate-400">Paper Cash:</span>
-              <span className="font-mono font-bold text-emerald-400">{status.cash_balance.split(' ')[0]}</span>
+              <span className="font-mono font-bold text-emerald-400">{(status.cash_balance ?? '—').split(' ')[0]}</span>
             </div>
             <div className="flex justify-between border-b border-slate-700/50 pb-1">
               <span className="text-slate-400">Started with:</span>

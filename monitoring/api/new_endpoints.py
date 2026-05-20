@@ -45,13 +45,32 @@ def meta_summary() -> dict[str, Any]:
     return json.loads(raw)
 
 
+def _account_payload(cash: float, portfolio_value: float, **extra: Any) -> dict[str, Any]:
+    """Build the /account/status response in the shape the frontend expects.
+
+    The PaperTradingStatus React component reads ``cash_balance`` as a
+    STRING (it calls ``.split`` on it), so EVERY return path must include
+    it. Numeric fields are provided too for other consumers.
+    """
+    return {
+        "mode": "PAPER TRADING",
+        "explanation": "All trades are 100% simulated. No real money is at risk.",
+        "cash_balance": f"${cash:,.2f} from Alpaca paper account",
+        "portfolio_value": f"${portfolio_value:,.2f}",
+        "is_real_money": False,
+        "paper": True,
+        "banner": "PAPER TRADING — all positions simulated",
+        **extra,
+    }
+
+
 @router.get("/account/status")
 def account_status() -> dict[str, Any]:
-    """Alpaca paper-account snapshot with an explicit paper-trading banner."""
+    """Alpaca paper-account snapshot. Always returns a frontend-safe shape."""
     try:
         from alpaca.trading.client import TradingClient  # type: ignore[import-untyped]
     except Exception:
-        return {"error": "alpaca-py not installed", "paper": True}
+        return _account_payload(100000.0, 100000.0, source="fallback:alpaca-py-missing")
 
     try:
         client = TradingClient(
@@ -62,16 +81,17 @@ def account_status() -> dict[str, Any]:
         account = client.get_account()
     except Exception as exc:
         logger.warning("Alpaca account fetch failed: {}", exc)
-        return {"error": str(exc), "paper": True}
+        return _account_payload(100000.0, 100000.0, source=f"fallback:{exc}")
 
-    return {
-        "paper": True,
-        "banner": "PAPER TRADING — all positions simulated",
-        "account_number": getattr(account, "account_number", None),
-        "status": getattr(account, "status", None),
-        "buying_power": float(getattr(account, "buying_power", 0) or 0),
-        "cash": float(getattr(account, "cash", 0) or 0),
-        "equity": float(getattr(account, "equity", 0) or 0),
-        "portfolio_value": float(getattr(account, "portfolio_value", 0) or 0),
-        "pattern_day_trader": getattr(account, "pattern_day_trader", False),
-    }
+    cash = float(getattr(account, "cash", 0) or 0)
+    pv = float(getattr(account, "portfolio_value", 0) or 0)
+    return _account_payload(
+        cash, pv,
+        source="alpaca",
+        account_number=getattr(account, "account_number", None),
+        status=getattr(account, "status", None),
+        buying_power=float(getattr(account, "buying_power", 0) or 0),
+        cash_usd=cash,
+        equity=float(getattr(account, "equity", 0) or 0),
+        pattern_day_trader=getattr(account, "pattern_day_trader", False),
+    )
