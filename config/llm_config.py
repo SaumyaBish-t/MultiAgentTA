@@ -11,6 +11,13 @@ import datetime
 import json
 import uuid
 
+# Every LLM call is bounded by these. Without an explicit timeout a slow or
+# unresponsive free-tier provider call hangs forever — that is what froze the
+# research pipeline (and the dashboard "AI Research Pipeline" at 70%). With a
+# timeout the call fails fast and the multi-key / Mistral fallbacks take over.
+LLM_TIMEOUT = 45        # seconds per LLM request
+LLM_MAX_RETRIES = 1     # keep low — redundancy comes from the fallback chain
+
 def log_llm_call(func):
     """
     Decorator to log LLM usage (tokens, cost) to the audit system.
@@ -140,19 +147,22 @@ class LLMFactory:
             keys = [settings.llm.groq_api_key.strip()]
             
         if not keys:
-            return ChatGroq(model=model_name, temperature=temperature, max_tokens=max_tokens)
-            
+            return ChatGroq(model=model_name, temperature=temperature, max_tokens=max_tokens,
+                            request_timeout=LLM_TIMEOUT, max_retries=LLM_MAX_RETRIES)
+
         # Select primary key via rotation
         primary_key = keys[cls._groq_key_index % len(keys)]
         cls._groq_key_index += 1
-        
+
         primary_llm = ChatGroq(
             model=model_name,
             api_key=primary_key,
             temperature=temperature,
-            max_tokens=max_tokens
+            max_tokens=max_tokens,
+            request_timeout=LLM_TIMEOUT,
+            max_retries=LLM_MAX_RETRIES
         )
-        
+
         # Build fallbacks using all remaining keys
         fallbacks = []
         for k in keys:
@@ -161,7 +171,9 @@ class LLMFactory:
                     model=model_name,
                     api_key=k,
                     temperature=temperature,
-                    max_tokens=max_tokens
+                    max_tokens=max_tokens,
+                    request_timeout=LLM_TIMEOUT,
+                    max_retries=LLM_MAX_RETRIES
                 ))
                 
         # Also append Mistral fallback as ultimate safety net
@@ -262,7 +274,9 @@ class LLMFactory:
             base_url=settings.llm.cerebras_base_url,
             api_key=settings.llm.cerebras_api_key,
             temperature=0,
-            max_tokens=1024
+            max_tokens=1024,
+            request_timeout=LLM_TIMEOUT,
+            max_retries=LLM_MAX_RETRIES
         )
 
     # ── OpenRouter LLMs ──────────────────────────────────
@@ -320,7 +334,9 @@ class LLMFactory:
             model=settings.llm.mistral_model,
             api_key=settings.llm.mistral_api_key,
             temperature=0.1,
-            max_tokens=2048
+            max_tokens=2048,
+            timeout=LLM_TIMEOUT,
+            max_retries=LLM_MAX_RETRIES
         )
 
     # ── Smart Fallback Wrapper ───────────────────────────

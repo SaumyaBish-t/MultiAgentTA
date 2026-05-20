@@ -49,7 +49,18 @@ def get_latest_hypothesis_for_ticker(ticker: str) -> dict | None:
             "description": hypo.description
         }
 
+# Per-stage timeouts (seconds). The research / LLM / backtest stages used
+# to be un-timed: a single hung network or LLM call froze the whole run
+# forever at whatever % it was on. wait_for() now bounds every slow stage
+# so it fails cleanly with a logged reason instead of hanging.
+HYPOTHESIS_TIMEOUT = 240   # research pipeline makes many LLM calls
+STRATEGY_TIMEOUT = 150     # StrategyCoder LLM generation
+BACKTEST_TIMEOUT = 180     # vectorbt backtest
+
+
 async def run_pipeline_for_ticker(ticker: str, run_id: str):
+    import time as _time
+
     stages = [
         ('collecting', 'Collecting market data...', 5),
         ('sentiment', 'Analyzing news sentiment...', 15),
@@ -66,10 +77,13 @@ async def run_pipeline_for_ticker(ticker: str, run_id: str):
         ('completed', 'Strategy ready!', 0),
     ]
 
+    tag = f"[pipeline {run_id[:8]} {ticker}]"
+    logger.info(f"{tag} STARTED")
     total_progress = 0
+    critical_error: str | None = None
+
     for stage, message, weight in stages:
         total_progress += weight
-
         status = {
             'run_id': run_id,
             'ticker': ticker,
@@ -78,49 +92,56 @@ async def run_pipeline_for_ticker(ticker: str, run_id: str):
             'progress': min(total_progress, 100),
             'completed': stage == 'completed',
             'failed': False,
-            'timestamp': datetime.now(timezone.utc).isoformat()
+            'timestamp': datetime.now(timezone.utc).isoformat(),
         }
         r.set(f'pipeline:status:{run_id}', json.dumps(status), ex=3600)
+        logger.info(f"{tag} stage '{stage}' START  ({total_progress}%)")
+        t0 = _time.perf_counter()
 
         try:
             if stage == 'collecting':
-                # Just mock or run the actual collector if available, let's assume it's running via background script
                 await asyncio.sleep(2)
 
             elif stage == 'hypothesis':
                 from alpha_research.pipeline.research_pipeline import ResearchPipeline
                 pipeline = ResearchPipeline()
-                result = await pipeline.run_single(ticker)
+                result = await asyncio.wait_for(
+                    pipeline.run_single(ticker), timeout=HYPOTHESIS_TIMEOUT)
                 if result:
                     status['hypothesis_ready'] = True
+                else:
+                    logger.warning(f"{tag} research pipeline returned no hypothesis")
 
             elif stage == 'strategy_code':
                 from signal_generation.agents.strategy_coder_agent import StrategyCoderAgent
                 hypothesis = get_latest_hypothesis_for_ticker(ticker)
-                if hypothesis:
-                    coder = StrategyCoderAgent()
-                    signal = await coder.generate(hypothesis)
-                    if signal and signal.get("id"):
-                        status['signal_id'] = str(signal["id"])
-                        r.set(f'pipeline:signal:{run_id}', str(signal["id"]), ex=3600)
+                if not hypothesis:
+                    raise RuntimeError("no hypothesis available to build a strategy from")
+                coder = StrategyCoderAgent()
+                signal = await asyncio.wait_for(
+                    coder.generate(hypothesis), timeout=STRATEGY_TIMEOUT)
+                if signal and signal.get("id"):
+                    status['signal_id'] = str(signal["id"])
+                    r.set(f'pipeline:signal:{run_id}', str(signal["id"]), ex=3600)
+                else:
+                    raise RuntimeError("strategy generation returned no signal")
 
             elif stage == 'backtest':
                 signal_id = r.get(f'pipeline:signal:{run_id}')
                 if signal_id:
-                    try:
-                        with Session(engine) as session:
-                            signal_record = session.query(TradingSignal).filter(TradingSignal.id == signal_id).first()
-                            if signal_record:
-                                agent = BacktesterAgent()
-                                sig_dict = {
-                                    "id": str(signal_record.id),
-                                    "ticker": signal_record.ticker,
-                                    "strategy_code": signal_record.strategy_code,
-                                    "parameters": signal_record.parameters
-                                }
-                                await agent.backtest(sig_dict)
-                    except Exception as e:
-                        logger.error(f"Backtester agent failed during pipeline execution: {e}")
+                    with Session(engine) as session:
+                        signal_record = session.query(TradingSignal).filter(
+                            TradingSignal.id == signal_id).first()
+                    if signal_record:
+                        agent = BacktesterAgent()
+                        sig_dict = {
+                            "id": str(signal_record.id),
+                            "ticker": signal_record.ticker,
+                            "strategy_code": signal_record.strategy_code,
+                            "parameters": signal_record.parameters,
+                        }
+                        await asyncio.wait_for(
+                            agent.backtest(sig_dict), timeout=BACKTEST_TIMEOUT)
 
             elif stage == 'completed':
                 signal_id = r.get(f'pipeline:signal:{run_id}')
@@ -128,24 +149,51 @@ async def run_pipeline_for_ticker(ticker: str, run_id: str):
                     status['strategy_ready'] = True
                     status['signal_id'] = str(signal_id)
 
-        except Exception as e:
-            status['warning'] = str(e)
-            status['stage_error'] = str(e)
-            logger.error(f"Pipeline error at {stage}: {e}")
+            elapsed = _time.perf_counter() - t0
+            logger.info(f"{tag} stage '{stage}' OK  ({elapsed:.1f}s)")
 
+        except asyncio.TimeoutError:
+            elapsed = _time.perf_counter() - t0
+            msg = (f"stage '{stage}' TIMED OUT after {elapsed:.0f}s — "
+                   f"a slow or unreachable LLM / data provider")
+            logger.error(f"{tag} {msg}")
+            status['stage_error'] = msg
+            status['warning'] = msg
+            if stage in ('hypothesis', 'strategy_code'):
+                critical_error = msg
+        except Exception as e:
+            elapsed = _time.perf_counter() - t0
+            msg = f"stage '{stage}' FAILED after {elapsed:.0f}s: {e}"
+            logger.error(f"{tag} {msg}")
+            status['stage_error'] = msg
+            status['warning'] = str(e)
+            if stage in ('hypothesis', 'strategy_code'):
+                critical_error = msg
+
+        status['failed'] = critical_error is not None
         r.set(f'pipeline:status:{run_id}', json.dumps(status), ex=3600)
+
+        if critical_error:
+            logger.error(f"{tag} ABORTING — {critical_error}")
+            break
         await asyncio.sleep(0.5)
 
-    final = {
-        'run_id': run_id,
-        'ticker': ticker,
-        'stage': 'completed',
-        'message': 'AI research complete. Strategy generated.',
-        'progress': 100,
-        'completed': True,
-        'failed': False,
-        'timestamp': datetime.now(timezone.utc).isoformat()
-    }
+    if critical_error:
+        final = {
+            'run_id': run_id, 'ticker': ticker, 'stage': 'failed',
+            'message': f'Pipeline failed: {critical_error}',
+            'stage_error': critical_error,
+            'progress': 100, 'completed': False, 'failed': True,
+            'timestamp': datetime.now(timezone.utc).isoformat(),
+        }
+    else:
+        final = {
+            'run_id': run_id, 'ticker': ticker, 'stage': 'completed',
+            'message': 'AI research complete. Strategy generated.',
+            'progress': 100, 'completed': True, 'failed': False,
+            'timestamp': datetime.now(timezone.utc).isoformat(),
+        }
+    logger.info(f"{tag} DONE — failed={final['failed']}")
     r.set(f'pipeline:status:{run_id}', json.dumps(final), ex=3600)
 
 @router.post('/pipeline/run-full-cycle')
