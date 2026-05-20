@@ -368,29 +368,96 @@ async def compute_metrics_node(state: BacktesterState) -> dict[str, Any]:
         return {"error": str(e), "rejection_reasons": ["METRICS_ERROR"]}
 
 async def apply_quality_filters_node(state: BacktesterState) -> dict[str, Any]:
+    """Graded quality evaluation.
+
+    The old logic was binary all-or-nothing: a strategy had to clear all 7
+    thresholds at once, so a decent strategy (positive return, beats the
+    benchmark, controlled drawdown, 62% win rate) was discarded identically
+    to outright garbage. Now there are two tiers:
+
+      * HARD disqualifiers — genuinely bad strategies (loses money, loses to
+        buy-and-hold, catastrophic drawdown, statistically meaningless trade
+        count). These always fail.
+      * SOFT criteria — Sharpe, trade count, win rate, profit factor,
+        drawdown depth, excess return — each contributes to a 0-100 quality
+        score mapped to an A/B/C/D grade.
+
+    A strategy PASSES (status 'validated', proceeds to walk-forward) if it
+    has no hard disqualifier and grades C or better. Walk-forward — the real
+    out-of-sample test — stays strict, so this only changes which candidates
+    *reach* that test; it does not lower the final deployment bar.
+    """
     if state.get("error"):
         return {"passed_filters": False}
-        
+
     metrics = state["metrics"]
-    reasons = state.get("rejection_reasons", [])
-    
-    if metrics["sharpe_ratio"] < 0.8:
-        reasons.append("LOW_SHARPE")
-    if metrics["total_return_pct"] <= 0:
-        reasons.append("NEGATIVE_RETURN")
-    if metrics["max_drawdown_pct"] < -25:
-        reasons.append("EXCESSIVE_DRAWDOWN")
-    if metrics["total_trades"] < 20:
-        reasons.append("INSUFFICIENT_TRADES")
-    if metrics["win_rate"] < 0.4:
-        reasons.append("LOW_WIN_RATE")
-    if metrics["total_return_pct"] <= metrics["benchmark_return_pct"]:
-        reasons.append("UNDERPERFORMS_BENCHMARK")
-    if metrics["profit_factor"] < 1.2:
-        reasons.append("LOW_PROFIT_FACTOR")
-        
-    passed = len(reasons) == 0
-    return {"passed_filters": passed, "rejection_reasons": reasons}
+    reasons = list(state.get("rejection_reasons", []))
+
+    sharpe = metrics.get("sharpe_ratio", 0.0)
+    ret = metrics.get("total_return_pct", 0.0)
+    bench = metrics.get("benchmark_return_pct", 0.0)
+    dd = metrics.get("max_drawdown_pct", 0.0)
+    trades = metrics.get("total_trades", 0)
+    win = metrics.get("win_rate", 0.0)
+    pf = metrics.get("profit_factor", 0.0)
+    excess = ret - bench
+
+    # ── Hard disqualifiers (genuinely bad — always fail) ─────────
+    hard_fail = []
+    if ret <= 0:
+        hard_fail.append("NEGATIVE_RETURN")
+    if excess <= 0:
+        hard_fail.append("UNDERPERFORMS_BENCHMARK")
+    if dd < -40:
+        hard_fail.append("CATASTROPHIC_DRAWDOWN")
+    if trades < 5:
+        hard_fail.append("TOO_FEW_TRADES")
+
+    # ── Soft quality score (0-100) ───────────────────────────────
+    score = 0
+    if sharpe >= 1.5:   score += 30
+    elif sharpe >= 1.0: score += 24
+    elif sharpe >= 0.5: score += 15
+    elif sharpe >= 0.0: score += 6
+    if trades >= 40:    score += 20
+    elif trades >= 20:  score += 14
+    elif trades >= 10:  score += 8
+    elif trades >= 5:   score += 3
+    if win >= 0.55:     score += 15
+    elif win >= 0.45:   score += 10
+    elif win >= 0.35:   score += 4
+    if pf >= 1.8:       score += 20
+    elif pf >= 1.4:     score += 14
+    elif pf >= 1.1:     score += 7
+    if dd >= -10:       score += 8
+    elif dd >= -20:     score += 5
+    elif dd >= -30:     score += 2
+    if excess >= 15:    score += 7
+    elif excess >= 5:   score += 4
+    elif excess > 0:    score += 2
+
+    if hard_fail:
+        grade = "D"
+    elif score >= 75:
+        grade = "A"
+    elif score >= 55:
+        grade = "B"
+    elif score >= 35:
+        grade = "C"
+    else:
+        grade = "D"
+
+    metrics["quality_score"] = score
+    metrics["quality_grade"] = grade
+
+    passed = (not hard_fail) and grade in ("A", "B", "C")
+
+    if hard_fail:
+        reasons.extend(hard_fail)
+    elif not passed:
+        reasons.append(f"LOW_QUALITY_GRADE_D(score={score})")
+
+    return {"passed_filters": passed, "rejection_reasons": reasons, "metrics": metrics}
 
 async def store_results_node(state: BacktesterState) -> dict[str, Any]:
     signal_id = state["signal"]["id"]

@@ -29,18 +29,24 @@ import numpy as np
 import vectorbt as vbt
 
 def strategy(price_data: pd.DataFrame, params: dict) -> tuple[pd.Series, pd.Series]:
-    # Extract parameters
-    fast = params.get('fast_period', 9)
-    slow = params.get('slow_period', 21)
-    
-    # Calculate indicators
-    ema_fast = price_data['close'].ewm(span=fast).mean()
-    ema_slow = price_data['close'].ewm(span=slow).mean()
-    
-    # Generate signals
-    entries = (ema_fast > ema_slow) & (ema_fast.shift(1) <= ema_slow.shift(1))
-    exits = (ema_fast < ema_slow) & (ema_fast.shift(1) >= ema_slow.shift(1))
-    
+    # Regime-filtered momentum. A bare EMA crossover has no edge after costs;
+    # the fix is to only take momentum signals while the market is in an
+    # established uptrend, and to exit when that regime breaks.
+    fast = int(params.get('fast_period', 20))
+    slow = int(params.get('slow_period', 50))
+    trend = int(params.get('trend_period', 200))
+
+    close = price_data['close']
+    ema_fast = close.ewm(span=fast).mean()
+    ema_slow = close.ewm(span=slow).mean()
+    trend_sma = close.rolling(trend, min_periods=1).mean()
+
+    uptrend = close > trend_sma                                   # regime filter
+    golden = (ema_fast > ema_slow) & (ema_fast.shift(1) <= ema_slow.shift(1))
+    death = (ema_fast < ema_slow) & (ema_fast.shift(1) >= ema_slow.shift(1))
+
+    entries = (golden & uptrend).fillna(False)
+    exits = (death | (close < trend_sma)).fillna(False)           # explicit exit
     return entries, exits
 """
 
@@ -49,22 +55,29 @@ import numpy as np
 import vectorbt as vbt
 
 def strategy(price_data: pd.DataFrame, params: dict) -> tuple[pd.Series, pd.Series]:
-    # Extract parameters
-    period = params.get('rsi_period', 14)
-    oversold = params.get('oversold', 30)
-    overbought = params.get('overbought', 70)
-    
-    # Calculate RSI manually to avoid TA-Lib dependency
-    delta = price_data['close'].diff()
+    # Confluence mean-reversion. Buy oversold dips, but ONLY while the long
+    # trend is still up (never catch a falling knife in a bear market) and
+    # require a real dislocation below the lower Bollinger band.
+    period = int(params.get('rsi_period', 14))
+    oversold = float(params.get('oversold', 35))
+    bb_period = int(params.get('bb_period', 20))
+    bb_std = float(params.get('bb_std', 2.0))
+    trend = int(params.get('trend_period', 200))
+
+    close = price_data['close']
+    delta = close.diff()
     gain = delta.clip(lower=0).rolling(period).mean()
     loss = (-delta.clip(upper=0)).rolling(period).mean()
-    rs = gain / loss.replace(0, float('inf'))
+    rs = gain / loss.replace(0, np.nan)
     rsi = 100 - (100 / (1 + rs))
-    
-    # Generate signals
-    entries = rsi < oversold
-    exits = rsi > overbought
-    
+
+    ma = close.rolling(bb_period).mean()
+    sd = close.rolling(bb_period).std()
+    lower_band = ma - bb_std * sd
+    trend_sma = close.rolling(trend, min_periods=1).mean()
+
+    entries = ((rsi < oversold) & (close < lower_band) & (close > trend_sma)).fillna(False)
+    exits = (close >= ma).fillna(False)                           # revert to mean
     return entries, exits
 """
 
@@ -73,17 +86,26 @@ import numpy as np
 import vectorbt as vbt
 
 def strategy(price_data: pd.DataFrame, params: dict) -> tuple[pd.Series, pd.Series]:
-    # Extract parameters
-    lookback = params.get('lookback', 20)
-    
-    # Calculate breakout levels
-    high_break = price_data['close'] > price_data['high'].rolling(lookback).max().shift(1)
-    low_break = price_data['close'] < price_data['low'].rolling(lookback).min().shift(1)
-    
-    # Generate signals
-    entries = high_break
-    exits = low_break
-    
+    # Volatility breakout with trend + volume confirmation. A breakout only
+    # counts if it happens in an uptrend AND on above-average volume — this
+    # filters out the false breakouts that sink naive breakout systems.
+    lookback = int(params.get('lookback', 20))
+    exit_lookback = int(params.get('exit_lookback', 10))
+    trend = int(params.get('trend_period', 100))
+    vol_mult = float(params.get('volume_mult', 1.2))
+
+    close = price_data['close']
+    high = price_data['high']
+    low = price_data['low']
+    volume = price_data['volume']
+
+    breakout = close > high.rolling(lookback).max().shift(1)
+    trend_sma = close.rolling(trend, min_periods=1).mean()
+    avg_vol = volume.rolling(lookback).mean()
+    vol_ok = volume > (avg_vol * vol_mult)
+
+    entries = (breakout & (close > trend_sma) & vol_ok).fillna(False)
+    exits = (close < low.rolling(exit_lookback).min().shift(1)).fillna(False)
     return entries, exits
 """
 
