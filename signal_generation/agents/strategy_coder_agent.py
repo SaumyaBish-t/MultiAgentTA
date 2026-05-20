@@ -501,6 +501,12 @@ class StrategyCoderAgent:
         
         logger.info(f"Running StrategyCoder for {initial_state['ticker']}")
         final_state = await self._graph.ainvoke(initial_state)
+        # The graph stores the generated code internally under 'current_code'.
+        # Downstream consumers (backtester, signal pipeline) expect the
+        # canonical key 'strategy_code' — expose it so the backtest node
+        # actually receives the code instead of an empty string.
+        if not final_state.get("strategy_code") and final_state.get("current_code"):
+            final_state["strategy_code"] = final_state["current_code"]
         return final_state
         
     async def generate_batch(self, hypotheses: list[dict]) -> list[dict]:

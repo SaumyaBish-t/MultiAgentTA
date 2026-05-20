@@ -550,7 +550,7 @@ class BacktesterAgent:
             "signal": signal,
             "ticker": signal.get("ticker", ""),
             "price_data": {},
-            "strategy_code": signal.get("strategy_code", ""),
+            "strategy_code": signal.get("strategy_code") or signal.get("current_code", ""),
             "parameters": signal.get("parameters", {}),
             "entries": [],
             "exits": [],

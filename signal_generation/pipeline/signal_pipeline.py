@@ -151,7 +151,12 @@ class SignalPipeline:
             
             if not signal or signal.get("status") == "rejected":
                 return {"rejected_signals": [hypo.get("id")]}
-                
+
+            # Stamp the hypothesis link the router needs: route_from_generate
+            # compares signal["hypothesis_id"] to current_hypothesis["id"].
+            # The StrategyCoder doesn't always set this, so the comparison
+            # failed and the backtest node was silently skipped.
+            signal["hypothesis_id"] = hypo.get("id")
             return {"current_hypothesis": hypo, "generated_signals": [signal]}
         except asyncio.TimeoutError:
             logger.warning(f"Generation timed out for {hypo['id']}")
