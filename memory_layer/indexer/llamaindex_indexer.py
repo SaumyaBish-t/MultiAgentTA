@@ -21,7 +21,14 @@ from loguru import logger
 from config.settings import settings
 
 try:
-    from llama_index.core import SimpleDirectoryReader, VectorStoreIndex, StorageContext, load_index_from_storage  # type: ignore[import-untyped]
+    from llama_index.core import (  # type: ignore[import-untyped]
+        Settings,
+        SimpleDirectoryReader,
+        VectorStoreIndex,
+        StorageContext,
+        load_index_from_storage,
+    )
+    from llama_index.embeddings.nvidia import NVIDIAEmbedding  # type: ignore[import-untyped]
     _HAS_LLI = True
 except Exception:  # pragma: no cover
     _HAS_LLI = False
@@ -32,6 +39,31 @@ INDEX_DIR_NAME = ".forge_vault_index"
 
 def available() -> bool:
     return _HAS_LLI
+
+
+def _configure_embeddings() -> bool:
+    """Pin the embedding model to NVIDIA NIM ``nv-embedqa-e5-v5``.
+
+    LlamaIndex defaults to OpenAI embeddings; FORGE has no OpenAI key, so
+    this MUST be set before building or querying the index. Retrieval is
+    embedding-only — no LLM is needed, so ``Settings.llm`` is left alone
+    (the retriever path never resolves it).
+    """
+    if not _HAS_LLI:
+        return False
+    api_key = settings.llm.nvidia_api_key
+    if not api_key:
+        logger.warning("NVIDIA_API_KEY missing — cannot configure embeddings")
+        return False
+    try:
+        Settings.embed_model = NVIDIAEmbedding(
+            model=settings.llm.nvidia_embedding_model,
+            api_key=api_key,
+        )
+        return True
+    except Exception as exc:
+        logger.warning("failed to configure NVIDIA embeddings: {}", exc)
+        return False
 
 
 def _vault_path() -> Path | None:
@@ -55,6 +87,9 @@ def build_index(force_rebuild: bool = False) -> dict[str, Any]:
     vault = _vault_path()
     if vault is None:
         return {"skipped": "vault path not configured or missing"}
+
+    if not _configure_embeddings():
+        return {"error": "embedding model not configured (check NVIDIA_API_KEY)"}
 
     index_dir = vault / INDEX_DIR_NAME
     if index_dir.exists() and not force_rebuild:
@@ -92,6 +127,8 @@ def query(question: str, top_k: int = 5) -> list[dict[str, Any]]:
         return []
     index_dir = vault / INDEX_DIR_NAME
     if not index_dir.exists():
+        return []
+    if not _configure_embeddings():
         return []
     try:
         sc = StorageContext.from_defaults(persist_dir=str(index_dir))
