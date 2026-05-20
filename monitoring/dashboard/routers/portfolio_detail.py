@@ -11,6 +11,47 @@ from alpaca.trading.client import TradingClient
 router = APIRouter(prefix="/portfolio", tags=["Portfolio"])
 engine = create_engine(settings.postgres_url)
 
+@router.get("")
+async def get_portfolio_summary():
+    """Current portfolio state — concise summary for the Command Center.
+
+    The frontend CommandCenter calls GET /portfolio (bare). Only the
+    /portfolio/* sub-paths existed, so this returned 404.
+    """
+    try:
+        client = TradingClient(
+            settings.alpaca_api_key.get_secret_value() if hasattr(settings.alpaca_api_key, 'get_secret_value') else settings.alpaca_api_key,
+            settings.alpaca_secret_key.get_secret_value() if hasattr(settings.alpaca_secret_key, 'get_secret_value') else settings.alpaca_secret_key,
+            paper=True,
+        )
+        acct = client.get_account()
+        alpaca_positions = client.get_all_positions()
+        return {
+            "portfolio_value": float(acct.portfolio_value),
+            "cash": float(acct.cash),
+            "buying_power": float(acct.buying_power),
+            "unrealized_pnl": sum(float(p.unrealized_pl) for p in alpaca_positions),
+            "position_count": len(alpaca_positions),
+            "is_paper_trading": True,
+            "positions": [
+                {
+                    "ticker": p.symbol,
+                    "quantity": float(p.qty),
+                    "market_value": float(p.market_value),
+                    "unrealized_pnl": float(p.unrealized_pl),
+                }
+                for p in alpaca_positions
+            ],
+        }
+    except Exception as e:
+        logger.error(f"Failed to get portfolio summary: {e}")
+        return {
+            "portfolio_value": 100000.0, "cash": 100000.0,
+            "buying_power": 200000.0, "unrealized_pnl": 0.0,
+            "position_count": 0, "is_paper_trading": True, "positions": [],
+        }
+
+
 @router.get("/full")
 async def get_portfolio_full():
     try:

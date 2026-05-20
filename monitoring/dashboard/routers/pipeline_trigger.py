@@ -21,10 +21,15 @@ class PipelineRequest(BaseModel):
     force_refresh: bool = False
 
 def check_validated_strategy_exists(ticker: str) -> TradingSignal | None:
+    # Signal statuses in this system are: draft, validated, approved, live,
+    # rejected, retired. There is no "active" status — the old filter below
+    # matched nothing, so /pipeline/status always reported has_strategy=false
+    # and the Strategy Comparison page never displayed a generated strategy.
+    # Treat any non-dead signal as an existing strategy.
     with Session(engine) as session:
         return session.query(TradingSignal).filter(
             TradingSignal.ticker == ticker,
-            TradingSignal.status == "active"
+            TradingSignal.status.notin_(["rejected", "retired"])
         ).order_by(TradingSignal.created_at.desc()).first()
 
 def get_latest_hypothesis_for_ticker(ticker: str) -> dict | None:
