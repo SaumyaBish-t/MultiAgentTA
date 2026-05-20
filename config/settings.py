@@ -283,6 +283,48 @@ class Settings(BaseSettings):
         description="Loguru / stdlib log level",
     )
 
+    # ── Feature Flags (14-layer upgrade) ────────────────────────
+    # Every new layer in the L0–L13 upgrade is gated by a flag.
+    # Defaults are False/empty so behaviour is unchanged until enabled.
+    # Flip via env (e.g. FEATURE_ENGINE_ENABLED=true) to roll a layer in;
+    # flip back to False to instantly revert to the prior code path.
+    feature_engine_enabled: bool = Field(
+        default=False,
+        description="L2 Feature Engine — Hurst, breadth, sector rotation, etc.",
+    )
+    review_gate_enabled: bool = Field(
+        default=False,
+        description="L5 Human Review Gate — LangGraph interrupt before Phase 4",
+    )
+    meta_analysis_enabled: bool = Field(
+        default=False,
+        description="L11 Meta-Analysis — agent calibration + human-override value",
+    )
+    memory_layer_enabled: bool = Field(
+        default=False,
+        description="L12 Memory Layer — Obsidian vault + LlamaIndex RAG",
+    )
+    insider_flow_enabled: bool = Field(
+        default=False,
+        description="L1 addition — SEC Form 4 insider transaction collector",
+    )
+    options_flow_enabled: bool = Field(
+        default=False,
+        description="L1 addition — CBOE put/call ratio collector",
+    )
+    etf_flow_enabled: bool = Field(
+        default=False,
+        description="L1 addition — sector ETF relative-flow collector",
+    )
+    obsidian_vault_path: str = Field(
+        default="",
+        description="Absolute path to the Obsidian vault root (L12). Empty disables vault writes.",
+    )
+    mlflow_tracking_uri: str = Field(
+        default="./mlruns",
+        description="MLflow tracking URI for L4 strategy experiment logging",
+    )
+
     # Class-level constants (not loaded from env)
     _API_KEY_FIELDS: ClassVar[list[str]] = [
         "polygon_api_key",
