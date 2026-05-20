@@ -10,7 +10,8 @@ openai
 # Data Sources
 polygon-api-client>=1.16.3
 alpaca-py==0.26.0
-yfinance==0.2.44
+# 0.2.44 broke against Yahoo's current API (empty-JSON errors). Keep current.
+yfinance>=1.3.0
 fredapi==0.5.2
 httpx==0.27.0
 langdetect==1.0.9

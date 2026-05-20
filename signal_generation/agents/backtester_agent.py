@@ -288,26 +288,30 @@ async def compute_metrics_node(state: BacktesterState) -> dict[str, Any]:
         portfolio = state["portfolio"]
         benchmark = state["benchmark_metrics"].get("portfolio")
         
-        # VectorBT metrics can raise if no trades occurred.
-        # So we wrap some stats
-        try:
-            total_trades = portfolio.trades.count()
-            if total_trades > 0:
-                win_rate = portfolio.trades.win_rate()
-                profit_factor = portfolio.trades.profit_factor()
-                avg_trade_ret = portfolio.trades.returns.mean() * 100
-                avg_hold = portfolio.trades.duration.mean().total_seconds() / 86400
-                best_trade = portfolio.trades.returns.max() * 100
-                worst_trade = portfolio.trades.returns.min() * 100
-            else:
-                win_rate = 0.0
-                profit_factor = 0.0
-                avg_trade_ret = 0.0
-                avg_hold = 0.0
-                best_trade = 0.0
-                worst_trade = 0.0
-        except Exception:
-            total_trades = 0
+        # Trade statistics. Each metric is guarded INDEPENDENTLY: previously
+        # one shared try/except meant a single failing call (e.g.
+        # duration.mean().total_seconds() — vectorbt 1.x returns a float,
+        # not a Timedelta) clobbered total_trades to 0, which then triggered
+        # a false INSUFFICIENT_TRADES rejection on every strategy.
+        def _safe(fn, default=0.0):
+            try:
+                return fn()
+            except Exception:
+                return default
+
+        total_trades = int(_safe(lambda: portfolio.trades.count(), 0))
+        if total_trades > 0:
+            win_rate = _safe(lambda: float(portfolio.trades.win_rate()), 0.0)
+            profit_factor = _safe(lambda: float(portfolio.trades.profit_factor()), 0.0)
+            avg_trade_ret = _safe(lambda: float(portfolio.trades.returns.mean()) * 100, 0.0)
+            best_trade = _safe(lambda: float(portfolio.trades.returns.max()) * 100, 0.0)
+            worst_trade = _safe(lambda: float(portfolio.trades.returns.min()) * 100, 0.0)
+            # duration.mean() is a Timedelta in older vectorbt but a plain
+            # float (bar count) in vectorbt 1.x — handle both.
+            _dur = _safe(lambda: portfolio.trades.duration.mean(), 0.0)
+            avg_hold = (_dur.total_seconds() / 86400
+                        if hasattr(_dur, "total_seconds") else float(_dur))
+        else:
             win_rate = 0.0
             profit_factor = 0.0
             avg_trade_ret = 0.0
@@ -315,9 +319,11 @@ async def compute_metrics_node(state: BacktesterState) -> dict[str, Any]:
             best_trade = 0.0
             worst_trade = 0.0
 
-        # Max drawdown duration parsing
+        # Max drawdown duration — Timedelta in old vectorbt, float (bars) in 1.x
         try:
-            mdd_dur = portfolio.max_drawdown_duration().total_seconds() / 86400
+            _mdd = portfolio.max_drawdown_duration()
+            mdd_dur = (_mdd.total_seconds() / 86400
+                       if hasattr(_mdd, "total_seconds") else float(_mdd))
         except Exception:
             mdd_dur = 0
             

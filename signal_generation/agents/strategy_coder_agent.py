@@ -116,6 +116,22 @@ Direction: {expected_direction}
 Type: {strategy_type}
 Timeframe: {timeframe}
 
+The strategy must have a genuine, economically-motivated edge tied to the
+hypothesis above — NOT a generic textbook indicator crossover (a bare
+moving-average crossover has no edge after costs). The backtest charges
+0.1% fees + 0.1% slippage per trade and REJECTS any strategy that fails
+to beat a buy-and-hold benchmark.
+
+STRATEGY DESIGN PRINCIPLES:
+- Trade the SPECIFIC inefficiency named in the hypothesis, not a bare crossover.
+- Combine 2+ non-redundant conditions (e.g. a trend/regime filter PLUS a
+  timing trigger) so entries are selective, not constant.
+- Always include an explicit exit rule; never rely on a single condition.
+- Aim for ~20-60 trades over 2 years of daily bars: enough for statistical
+  significance, few enough that transaction costs don't dominate.
+- Use only 3-5 parameters (more invites overfitting); prefer logic that is
+  robust to small parameter changes.
+
 STRICT REQUIREMENTS:
 1. Use ONLY these imports: pandas, numpy, vectorbt as vbt
 2. VectorBT Indicator Syntax Examples:
