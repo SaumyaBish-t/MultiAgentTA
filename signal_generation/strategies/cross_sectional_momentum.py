@@ -173,6 +173,9 @@ def backtest_cross_sectional_momentum(
     rebalance_days: int = 21,
     fees: float = 0.001,
     slippage: float = 0.001,
+    start: str | None = None,
+    end: str | None = None,
+    prices: pd.DataFrame | None = None,
 ) -> CrossSectionalResult:
     """Backtest a long-only top-N cross-sectional momentum portfolio.
 
@@ -184,12 +187,17 @@ def backtest_cross_sectional_momentum(
     skip           : days skipped at the recent end (21 ≈ 1 month).
     rebalance_days : trading days between rebalances (21 ≈ monthly).
     fees, slippage : per-unit-turnover cost charged at each rebalance.
+    start, end     : optional evaluation window (ISO dates). Only rebalances
+                     and returns inside it are scored; momentum still uses
+                     ALL prior history. Used for walk-forward optimisation.
+    prices         : optionally pass a pre-loaded price matrix (lets the
+                     optimiser avoid reloading from the DB for every combo).
     """
-    universe = tickers or list(settings.tickers)
-    # ETFs make poor cross-sectional constituents — drop the obvious ones.
-    universe = [t for t in universe if t not in ("SPY", "QQQ", "DIA", "IWM")]
-
-    prices = load_universe_prices(universe)
+    if prices is None:
+        universe = tickers or list(settings.tickers)
+        # ETFs make poor cross-sectional constituents — drop the obvious ones.
+        universe = [t for t in universe if t not in ("SPY", "QQQ", "DIA", "IWM")]
+        prices = load_universe_prices(universe)
     if prices.empty or prices.shape[1] < top_n + 1:
         return CrossSectionalResult(error="insufficient universe price data")
     if len(prices) < lookback + rebalance_days + 5:
@@ -201,6 +209,14 @@ def backtest_cross_sectional_momentum(
     # Rebalance dates: every `rebalance_days` rows once the lookback is warm.
     idx = prices.index
     rebal_positions = list(range(lookback + skip, len(idx), rebalance_days))
+    # Optional evaluation window — momentum lookback still uses all prior
+    # history; this only limits which rebalances/returns are scored.
+    if start:
+        _s = pd.Timestamp(start)
+        rebal_positions = [p for p in rebal_positions if idx[p] >= _s]
+    if end:
+        _e = pd.Timestamp(end)
+        rebal_positions = [p for p in rebal_positions if idx[p] <= _e]
     if len(rebal_positions) < 3:
         return CrossSectionalResult(error="not enough rebalance periods")
 
@@ -235,9 +251,10 @@ def backtest_cross_sectional_momentum(
     cost = turnover * (fees + slippage)
     port_ret = (gross_ret - cost).fillna(0.0)
 
-    # Trim to the live (post-first-rebalance) window.
+    # Trim to the evaluation window (first in-window rebalance .. end).
     first_day = holdings_log[0][0]
-    port_ret = port_ret.loc[first_day:]
+    last_day = idx[-1] if not end else min(idx[-1], pd.Timestamp(end))
+    port_ret = port_ret.loc[first_day:last_day]
     equity = 100_000.0 * (1.0 + port_ret).cumprod()
 
     # ── Metrics ─────────────────────────────────────────────────
@@ -254,14 +271,15 @@ def backtest_cross_sectional_momentum(
     max_dd = float(drawdown.min()) * 100
 
     # Benchmark: equal-weight buy-and-hold of the whole universe.
-    bench_ret = asset_rets.loc[first_day:].mean(axis=1)
+    bench_ret = asset_rets.loc[first_day:last_day].mean(axis=1)
     bench_equity = (1.0 + bench_ret).cumprod()
     benchmark_return = float(bench_equity.iloc[-1] - 1.0) * 100
 
     # ── Per-name trades (a "trade" = one contiguous holding run) ──
+    eval_weights = weights.loc[first_day:last_day]
     trade_returns: list[float] = []
-    for tk in weights.columns:
-        w = weights[tk]
+    for tk in eval_weights.columns:
+        w = eval_weights[tk]
         in_pos = False
         entry_px = None
         for day in w.index:
@@ -274,8 +292,8 @@ def backtest_cross_sectional_momentum(
                 exit_px = prices[tk].get(day, np.nan)
                 if entry_px and not np.isnan(entry_px) and not np.isnan(exit_px) and entry_px > 0:
                     trade_returns.append(exit_px / entry_px - 1.0)
-        if in_pos and entry_px and entry_px > 0:  # close any open position at the end
-            last_px = prices[tk].iloc[-1]
+        if in_pos and entry_px and entry_px > 0:  # close any open position at window end
+            last_px = float(prices[tk].loc[:last_day].iloc[-1])
             trade_returns.append(last_px / entry_px - 1.0)
 
     wins = [r for r in trade_returns if r > 0]
@@ -318,6 +336,75 @@ def backtest_cross_sectional_momentum(
     )
     logger.info(result.summary())
     return result
+
+
+# ── Walk-forward parameter optimisation ─────────────────────────
+def optimize_cross_sectional_momentum(
+    tickers: list[str] | None = None,
+    train_frac: float = 0.6,
+) -> dict[str, Any]:
+    """Grid-search cross-sectional momentum params, validated out-of-sample.
+
+    The grid is searched on a TRAIN window; the best set (by train Sharpe)
+    is then evaluated on a held-out TEST window. The TEST result is the
+    honest one — train numbers are always optimistic because the params
+    were fitted to them. This is the overfitting guard the research insists
+    on: a parameter set only counts if it survives data it never saw.
+    """
+    universe = tickers or list(settings.tickers)
+    universe = [t for t in universe if t not in ("SPY", "QQQ", "DIA", "IWM")]
+    prices = load_universe_prices(universe)
+    if prices.empty or len(prices) < 250:
+        return {"error": "insufficient data for optimisation"}
+
+    dates = prices.index
+    split = dates[int(len(dates) * train_frac)]
+    split_str = str(split.date())
+
+    grid = [
+        (top_n, lookback, skip, rebalance)
+        for top_n in (3, 5, 8)
+        for lookback in (63, 126, 252)
+        for skip in (0, 21)
+        for rebalance in (21, 42)
+    ]
+
+    train_results: list[dict] = []
+    for top_n, lookback, skip, rebalance in grid:
+        r = backtest_cross_sectional_momentum(
+            top_n=top_n, lookback=lookback, skip=skip, rebalance_days=rebalance,
+            end=split_str, prices=prices,
+        )
+        if r.error:
+            continue
+        train_results.append({
+            "params": {"top_n": top_n, "lookback": lookback,
+                       "skip": skip, "rebalance_days": rebalance},
+            "sharpe": r.metrics["sharpe_ratio"],
+            "return_pct": r.metrics["total_return_pct"],
+            "grade": r.grade,
+        })
+
+    if not train_results:
+        return {"error": "no valid parameter combination on the train window"}
+
+    # Best by train Sharpe; tie-break on train return.
+    train_results.sort(key=lambda x: (x["sharpe"], x["return_pct"]), reverse=True)
+    best = train_results[0]
+
+    # Honest out-of-sample evaluation on the held-out test window.
+    test = backtest_cross_sectional_momentum(
+        start=split_str, prices=prices, **best["params"],
+    )
+
+    return {
+        "split_date": split_str,
+        "grid_size": len(grid),
+        "best_params": best["params"],
+        "train": {k: best[k] for k in ("sharpe", "return_pct", "grade")},
+        "test": test,
+        "top_train": train_results[:5],
+    }
 
 
 if __name__ == "__main__":
