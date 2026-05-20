@@ -13,8 +13,10 @@ without being modified:
 
 Endpoints
 ---------
-GET  /meta/summary            cached meta-analysis from Redis
-GET  /account/status          paper-account status from Alpaca
+GET  /meta/summary               cached meta-analysis from Redis
+GET  /account/status             paper-account status from Alpaca
+GET  /cross-sectional/run        run the cross-sectional momentum backtest
+GET  /cross-sectional/optimize   walk-forward parameter optimisation
 """
 
 from __future__ import annotations
@@ -61,6 +63,72 @@ def _account_payload(cash: float, portfolio_value: float, **extra: Any) -> dict[
         "paper": True,
         "banner": "PAPER TRADING — all positions simulated",
         **extra,
+    }
+
+
+# ── Cross-sectional momentum strategy ────────────────────────────
+def _filter_universe(market: str) -> list[str]:
+    tickers = list(settings.tickers)
+    if market == "us":
+        return [t for t in tickers if not t.endswith((".NS", ".BSE"))]
+    if market == "in":
+        return [t for t in tickers if t.endswith((".NS", ".BSE"))]
+    return tickers
+
+
+@router.get("/cross-sectional/run")
+def cross_sectional_run(
+    market: str = "us",
+    top_n: int = 5,
+    lookback: int = 126,
+    skip: int = 21,
+    rebalance: int = 21,
+) -> dict[str, Any]:
+    """Run the cross-sectional momentum backtest over the chosen universe."""
+    from signal_generation.strategies.cross_sectional_momentum import (
+        backtest_cross_sectional_momentum,
+    )
+    r = backtest_cross_sectional_momentum(
+        tickers=_filter_universe(market), top_n=top_n, lookback=lookback,
+        skip=skip, rebalance_days=rebalance,
+    )
+    if r.error:
+        return {"error": r.error}
+    return {
+        "grade": r.grade,
+        "quality_score": r.quality_score,
+        "passed": r.passed,
+        "rejection_reasons": r.rejection_reasons,
+        "metrics": r.metrics,
+        "equity_curve": r.equity_curve,
+        "final_holdings": r.final_holdings,
+    }
+
+
+@router.get("/cross-sectional/optimize")
+def cross_sectional_optimize(market: str = "us") -> dict[str, Any]:
+    """Walk-forward parameter optimisation — grid-search on train, report test."""
+    from signal_generation.strategies.cross_sectional_momentum import (
+        optimize_cross_sectional_momentum,
+    )
+    opt = optimize_cross_sectional_momentum(tickers=_filter_universe(market))
+    if opt.get("error"):
+        return {"error": opt["error"]}
+    test = opt["test"]
+    return {
+        "split_date": opt["split_date"],
+        "grid_size": opt["grid_size"],
+        "best_params": opt["best_params"],
+        "train": opt["train"],
+        "top_train": opt["top_train"],
+        "test": {
+            "grade": test.grade,
+            "quality_score": test.quality_score,
+            "passed": test.passed,
+            "metrics": test.metrics,
+            "equity_curve": test.equity_curve,
+            "final_holdings": test.final_holdings,
+        },
     }
 
 

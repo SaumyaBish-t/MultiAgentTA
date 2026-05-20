@@ -11,7 +11,8 @@ import {
   Settings,
   Menu,
   X,
-  Database
+  Database,
+  TrendingUp
 } from 'lucide-react';
 
 const Shell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -21,6 +22,7 @@ const Shell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     { name: 'Command Center', icon: LayoutDashboard, path: '/' },
     { name: 'Portfolio', icon: Database, path: '/portfolio' },
     { name: 'Strategy Lab', icon: Zap, path: '/strategy' },
+    { name: 'Cross-Sectional', icon: TrendingUp, path: '/cross-sectional' },
     { name: 'Signal Intel', icon: BarChart3, path: '/signals' },
     { name: 'Risk Terminal', icon: ShieldAlert, path: '/risk' },
     { name: 'Audit Ledger', icon: History, path: '/audit' },
