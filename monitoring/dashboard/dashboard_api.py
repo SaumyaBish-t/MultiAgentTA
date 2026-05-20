@@ -28,6 +28,9 @@ from monitoring.dashboard.routers import portfolio_detail
 from monitoring.dashboard.routers import signals_detail
 from monitoring.dashboard.routers import risk_detail
 from monitoring.dashboard.routers import audit_detail
+# 14-layer upgrade — new routers (additive)
+from monitoring.api.new_endpoints import router as new_endpoints_router
+from review_gate.api.review_endpoints import router as review_router
 
 app = FastAPI(title="MultiModelTA Monitoring API")
 
@@ -48,6 +51,9 @@ app.include_router(portfolio_detail.router)
 app.include_router(signals_detail.router)
 app.include_router(risk_detail.router)
 app.include_router(audit_detail.router)
+# 14-layer upgrade — new routes: /meta/summary, /account/status, /review/*
+app.include_router(new_endpoints_router)
+app.include_router(review_router, prefix="/review", tags=["review"])
 
 # Shared components
 r = redis.from_url(settings.redis_url, decode_responses=True)
