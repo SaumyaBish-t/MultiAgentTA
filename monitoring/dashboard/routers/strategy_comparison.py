@@ -130,7 +130,7 @@ async def get_strategy_comparison(
 ):
     period_days = {'1d': 1, '1w': 7, '1m': 30, '3m': 90, '1y': 365}.get(period, 30)
 
-    db_timeframe = '1min' if timeframe in ['5m', '30m', '1h', '6h', '12h'] else '1d'
+    db_timeframe = '1min' if timeframe in ['1min', '5m', '30m', '1h', '6h', '12h'] else '1d'
 
     bars = []
     try:
@@ -147,10 +147,11 @@ async def get_strategy_comparison(
                     FROM ohlcv_bars
                     WHERE ticker = :ticker
                     AND timestamp >= NOW() - (:days * INTERVAL '1 day')
-                    AND timeframe = '1min'
+                    AND timeframe = :db_timeframe
                     GROUP BY bar_time
                     ORDER BY bar_time ASC
-                ''').bindparams(bucket=timeframe_to_bucket(timeframe), ticker=ticker, days=period_days)
+                ''').bindparams(bucket=timeframe_to_bucket(timeframe), ticker=ticker,
+                                days=period_days, db_timeframe=db_timeframe)
             )
             bars = result.fetchall()
     except Exception as e:
