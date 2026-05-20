@@ -17,24 +17,28 @@ def backfill_history():
         try:
             logger.info(f"Processing {ticker}...")
             
-            # Fetch 2 years of daily data
+            # Fetch 2 years of daily data.
+            # auto_adjust=True -> split- and dividend-adjusted prices, so a
+            # stock split (e.g. NVDA 10:1 in 2024) doesn't leave a fake -90%
+            # bar that wrecks momentum backtests.
             stock = yf.Ticker(ticker)
-            df = stock.history(period="2y", interval="1d")
-            
+            df = stock.history(period="2y", interval="1d", auto_adjust=True)
+
             if df.empty:
                 logger.warning(f"No daily data found for {ticker}")
                 continue
-                
+
             logger.info(f"Fetched {len(df)} daily bars for {ticker}. Inserting into DB...")
-            
+
             with engine.connect() as conn:
                 for idx, row in df.iterrows():
-                    # Convert index to UTC timestamp
-                    ts = idx.to_pydatetime()
-                    if ts.tzinfo is None:
-                        ts = ts.replace(tzinfo=None) # Assume local/market time then convert to UTC if needed
-                        # But yfinance usually returns localized or UTC-offset aware
-                    
+                    # Normalise to midnight of the calendar date (tz-naive).
+                    # yfinance returns market-local tz-aware timestamps, so the
+                    # SAME trading day lands at different absolute times for US
+                    # vs NSE tickers — that created duplicate-day rows on
+                    # re-runs. Keying on the date makes ON CONFLICT idempotent.
+                    ts = pd.Timestamp(idx.date()).to_pydatetime()
+
                     conn.execute(text("""
                         INSERT INTO ohlcv_bars (ticker, timestamp, open, high, low, close, volume, timeframe)
                         VALUES (:t, :ts, :o, :h, :l, :c, :v, :tf)

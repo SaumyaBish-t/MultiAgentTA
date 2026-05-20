@@ -172,10 +172,16 @@ class Settings(BaseSettings):
     # ── Data Configuration ──────────────────────────────────────
     tickers: list[str] = Field(
         default=[
-            # US Markets
-            "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "TSLA", "JPM", "SPY", "QQQ",
-            # Indian Markets (NSE)
-            "RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "INFY.NS", "ICICIBANK.NS"
+            # ── US Markets ──────────────────────────────────────
+            # Mega-cap, highly liquid, sector-diversified — clean data and
+            # deep liquidity give the strategy engine the best shot at a
+            # tradeable edge.
+            "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "TSLA", "META",
+            "AVGO", "LLY", "JPM", "V", "COST", "XOM",
+            "SPY", "QQQ",
+            # ── Indian Markets (NSE) ────────────────────────────
+            "RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "INFY.NS", "ICICIBANK.NS",
+            "BHARTIARTL.NS", "SBIN.NS", "LT.NS", "HINDUNILVR.NS",
         ],
         description="Equity / ETF symbols to ingest",
     )
