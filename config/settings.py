@@ -161,8 +161,10 @@ class Settings(BaseSettings):
         description="PostgreSQL connection string (fundamental / reference data)",
     )
     redis_url: str = Field(
-        default="redis://localhost:6379/0",
-        description="Redis connection string (caching & pub/sub)",
+        default="redis://localhost:16379/0",
+        description="Redis connection string (caching & pub/sub). Host port "
+                    "16379 -> container 6379; 6379 is blocked by Windows "
+                    "Hyper-V reserved port ranges. Overridable via REDIS_URL.",
     )
     chroma_path: str = Field(
         default="./data/chromadb",

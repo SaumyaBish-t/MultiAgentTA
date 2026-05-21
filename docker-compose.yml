@@ -31,7 +31,11 @@ services:
 
   redis:
     image: redis:7-alpine
-    ports: ["6379:6379"]
+    # Host port 16379 (container still 6379). Windows/Hyper-V dynamically
+    # reserves the 5660-6459 range, which includes 6379, so Docker can't
+    # bind 6379 on the host ("forbidden by its access permissions").
+    # 16379 sits well outside any reserved range. Update REDIS_URL to match.
+    ports: ["16379:6379"]
 
   prefect:
     image: prefecthq/prefect:3-latest
