@@ -14,6 +14,14 @@ import {
 } from 'lucide-react';
 import { TradingViewChart } from '../components/charts/TradingViewChart';
 
+const gradeColor = (g?: string | null): string =>
+  ({
+    A: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+    B: 'bg-indigo-100 text-indigo-700 border-indigo-200',
+    C: 'bg-amber-100 text-amber-700 border-amber-200',
+    D: 'bg-red-100 text-red-700 border-red-200',
+  }[g || ''] || 'bg-gray-100 text-gray-700 border-gray-200');
+
 const StrategyComparison: React.FC = () => {
   const queryClient = useQueryClient();
   const [selectedTicker, setSelectedTicker] = useState('AAPL');
@@ -270,18 +278,50 @@ const StrategyComparison: React.FC = () => {
             )}
           </div>
 
-          <div className="panel space-y-6">
+          <div className="panel space-y-4">
             <span className="label-caps border-b border-border pb-2 block">Performance Stats</span>
-            <div className="space-y-4">
-              <div>
-                <p className="text-[10px] text-text-muted uppercase font-bold mb-1">Strategy Return</p>
-                <div className="flex items-baseline space-x-2">
-                  <span className={`text-2xl font-bold font-mono ${(stats?.strategy_return_pct ?? 0) >= 0 ? 'text-positive' : 'text-negative'}`}>
-                    {stats?.strategy_return_pct >= 0 ? '+' : ''}{stats?.strategy_return_pct?.toFixed(2)}%
-                  </span>
+            {comparison?.quality_grade ? (
+              <>
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-text-muted uppercase font-bold">Quality Grade</span>
+                  <div className="flex items-center space-x-2">
+                    <span className={`px-2.5 py-1 rounded-lg text-sm font-black border ${gradeColor(comparison.quality_grade)}`}>
+                      {comparison.quality_grade}
+                    </span>
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold text-white ${comparison.quality_passed ? 'bg-emerald-600' : 'bg-red-600'}`}>
+                      {comparison.quality_passed ? 'PASSED' : 'REJECTED'}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            </div>
+                <div>
+                  <p className="text-[10px] text-text-muted uppercase font-bold mb-1">Strategy Return</p>
+                  <div className="flex items-baseline space-x-2">
+                    <span className={`text-2xl font-bold font-mono ${(stats?.strategy_return_pct ?? 0) >= 0 ? 'text-positive' : 'text-negative'}`}>
+                      {(stats?.strategy_return_pct ?? 0) >= 0 ? '+' : ''}{(stats?.strategy_return_pct ?? 0).toFixed(2)}%
+                    </span>
+                    <span className="text-[11px] text-text-muted">
+                      vs {(stats?.benchmark_return_pct ?? 0).toFixed(2)}% benchmark
+                    </span>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><p className="text-[10px] text-text-muted uppercase font-bold">Sharpe</p>
+                    <p className="font-mono font-bold text-text-primary">{(stats?.sharpe_ratio ?? 0).toFixed(2)}</p></div>
+                  <div><p className="text-[10px] text-text-muted uppercase font-bold">Max Drawdown</p>
+                    <p className="font-mono font-bold text-negative">{(stats?.max_drawdown_pct ?? 0).toFixed(2)}%</p></div>
+                  <div><p className="text-[10px] text-text-muted uppercase font-bold">Win Rate</p>
+                    <p className="font-mono font-bold text-text-primary">{((stats?.win_rate ?? 0) * 100).toFixed(0)}%</p></div>
+                  <div><p className="text-[10px] text-text-muted uppercase font-bold">Trades</p>
+                    <p className="font-mono font-bold text-text-primary">{stats?.total_trades ?? 0}</p></div>
+                </div>
+                <p className="text-[10px] text-text-muted">Quality score: {comparison.quality_score}/100
+                  {comparison.rejection_reasons?.length > 0 && ` · ${comparison.rejection_reasons.join(', ')}`}</p>
+              </>
+            ) : (
+              <p className="text-sm text-text-muted">
+                No backtest yet. Run the AI pipeline to generate and grade a strategy.
+              </p>
+            )}
           </div>
 
         </div>

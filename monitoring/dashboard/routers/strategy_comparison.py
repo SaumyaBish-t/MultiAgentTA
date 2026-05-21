@@ -233,11 +233,43 @@ async def get_strategy_comparison(
 
     strategy_data = []
     trade_markers = []
+    quality = None
+    performance_comparison = None
+    active_strategy = None
     if validated_signal:
         with Session(engine) as session:
             backtest = session.query(BacktestResult).filter(
                 BacktestResult.signal_id == validated_signal.id
             ).first()
+            if backtest:
+                # Grade the strategy from its stored backtest metrics so the
+                # dashboard can show the A/B/C/D class. The grade is computed
+                # at backtest time but not persisted as a column, so we
+                # recompute it here from the same shared grading logic.
+                from signal_generation.grading import grade_metrics
+                quality = grade_metrics({
+                    "sharpe_ratio": backtest.sharpe_ratio,
+                    "total_return_pct": backtest.total_return_pct,
+                    "benchmark_return_pct": backtest.benchmark_return_pct,
+                    "max_drawdown_pct": backtest.max_drawdown_pct,
+                    "total_trades": backtest.total_trades,
+                    "win_rate": backtest.win_rate,
+                    "profit_factor": backtest.profit_factor,
+                })
+                performance_comparison = {
+                    "strategy_return_pct": float(backtest.total_return_pct or 0),
+                    "benchmark_return_pct": float(backtest.benchmark_return_pct or 0),
+                    "sharpe_ratio": float(backtest.sharpe_ratio or 0),
+                    "max_drawdown_pct": float(backtest.max_drawdown_pct or 0),
+                    "win_rate": float(backtest.win_rate or 0),
+                    "total_trades": int(backtest.total_trades or 0),
+                    "profit_factor": float(backtest.profit_factor or 0),
+                }
+            active_strategy = {
+                "strategy_name": validated_signal.signal_name,
+                "strategy_type": validated_signal.signal_type,
+                "status": validated_signal.status,
+            }
             if backtest and backtest.equity_curve:
                 equity = backtest.equity_curve
                 for pt in equity:
@@ -282,6 +314,12 @@ async def get_strategy_comparison(
         'trade_markers': trade_markers,
         'has_strategy': validated_signal is not None,
         'strategy_needs_generation': validated_signal is None,
+        'quality_grade': quality['quality_grade'] if quality else None,
+        'quality_score': quality['quality_score'] if quality else None,
+        'quality_passed': quality['passed'] if quality else None,
+        'rejection_reasons': quality['rejection_reasons'] if quality else [],
+        'performance_comparison': performance_comparison,
+        'active_strategy': active_strategy,
         'data_source': 'timescaledb_realtime' if bars else 'yfinance_delayed',
         'timeframe': timeframe,
         'period': period
