@@ -226,7 +226,7 @@ pg.commit()
 pg.close()
 
 # ── Update Redis ──────────────────────────────────────────
-r = redis.from_url('redis://localhost:6379')
+r = redis.from_url('redis://localhost:16379')
 r.set('portfolio:drawdown:current', '0.023')
 r.set('portfolio:peak:value', '102450.0')
 r.set('portfolio:alert:level', 'green')

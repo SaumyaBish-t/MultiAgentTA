@@ -61,7 +61,7 @@ with open("AUDIT.md", "w", encoding="utf-8") as out:
         write(f"DB Error: {e}")
 
     # ── Redis audit ─────────────────────────────────────────────
-    r = redis.from_url('redis://localhost:6379')
+    r = redis.from_url('redis://localhost:16379')
     redis_keys = [
         'portfolio:current:state',
         'portfolio:drawdown:current',

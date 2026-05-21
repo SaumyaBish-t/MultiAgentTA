@@ -168,7 +168,7 @@ async def stream_prices(ticker: str, timeframe: str = '1min'):
 
 async def portfolio_event_stream():
     import redis.asyncio as aioredis
-    r = aioredis.from_url('redis://localhost:6379')
+    r = aioredis.from_url(settings.redis_url)
 
     while True:
         try:
@@ -201,7 +201,7 @@ async def stream_portfolio():
 
 async def pipeline_event_stream(run_id: str):
     import redis.asyncio as aioredis
-    r = aioredis.from_url('redis://localhost:6379')
+    r = aioredis.from_url(settings.redis_url)
 
     while True:
         try:

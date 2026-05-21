@@ -7,7 +7,7 @@ from execution.agents.emergency_handler import EmergencyHandler
 async def test_emergency_handler():
     print("Testing Emergency Execution Handler...")
     handler = EmergencyHandler()
-    r = redis.from_url("redis://localhost:6379", decode_responses=True)
+    r = redis.from_url("redis://localhost:16379", decode_responses=True)
     
     # Start the listener in the background
     handler.start_listener()

@@ -9,7 +9,7 @@ import redis
 
 router = APIRouter(prefix="/risk", tags=["Risk"])
 engine = create_engine(settings.postgres_url)
-r = redis.from_url('redis://localhost:6379')
+r = redis.from_url(settings.redis_url)
 
 @router.get("/full")
 async def get_risk_full():

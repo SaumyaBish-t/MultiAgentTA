@@ -82,7 +82,7 @@ for port, path in tests:
 
 out.append("\n=== REDIS STATE ===")
 try:
-    r = redis.from_url('redis://localhost:6379', decode_responses=True)
+    r = redis.from_url('redis://localhost:16379', decode_responses=True)
     for key in ['portfolio:current:state', 'portfolio:drawdown:current', 'pipeline:running']:
         val = r.get(key)
         out.append(f"{key}: {'EXISTS' if val else 'MISSING'}")
