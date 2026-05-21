@@ -214,6 +214,63 @@ def live_rebalance_execute(req: RebalanceRequest) -> dict[str, Any]:
         return {"error": str(exc), "strategy": req.strategy}
 
 
+@router.get("/live/performance")
+def live_performance() -> dict[str, Any]:
+    """Live paper-account performance — equity curve + return since start."""
+    import datetime as _dt
+
+    try:
+        from alpaca.trading.client import TradingClient
+    except Exception:
+        return {"error": "alpaca-py not installed"}
+
+    try:
+        client = TradingClient(
+            api_key=settings.alpaca_api_key.get_secret_value(),
+            secret_key=settings.alpaca_secret_key.get_secret_value(),
+            paper=True,
+        )
+        account = client.get_account()
+    except Exception as exc:
+        return {"error": str(exc)}
+
+    equity = float(account.equity)
+    starting_value = 100_000.0  # Alpaca paper starting balance — the honest baseline
+
+    curve: list[dict[str, Any]] = []
+    try:
+        from alpaca.trading.requests import GetPortfolioHistoryRequest
+        hist = client.get_portfolio_history(
+            GetPortfolioHistoryRequest(period="all", timeframe="1D")
+        )
+        stamps = list(getattr(hist, "timestamp", []) or [])
+        eq = list(getattr(hist, "equity", []) or [])
+        for t, e in zip(stamps, eq):
+            if e is None:
+                continue
+            curve.append({
+                "date": _dt.datetime.utcfromtimestamp(int(t)).date().isoformat(),
+                "value": float(e),
+            })
+    except Exception as exc:
+        logger.warning("portfolio history unavailable: {}", exc)
+
+    if not curve:
+        curve = [
+            {"date": "start", "value": starting_value},
+            {"date": "now", "value": equity},
+        ]
+
+    return {
+        "is_paper": True,
+        "current_equity": equity,
+        "starting_value": starting_value,
+        "total_pl": equity - starting_value,
+        "total_return_pct": (equity - starting_value) / starting_value * 100,
+        "equity_curve": curve,
+    }
+
+
 @router.get("/account/status")
 def account_status() -> dict[str, Any]:
     """Alpaca paper-account snapshot. Always returns a frontend-safe shape."""

@@ -1,6 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Wallet, Eye, Rocket, Loader2, AlertTriangle, ArrowDownRight, ArrowUpRight, Minus } from 'lucide-react';
+import {
+  LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
+} from 'recharts';
+import {
+  Wallet, Eye, Rocket, Loader2, AlertTriangle, ArrowDownRight, ArrowUpRight,
+  Minus, TrendingUp,
+} from 'lucide-react';
 
 const MONITOR = import.meta.env.VITE_MONITOR_URL;
 
@@ -18,6 +24,14 @@ const LivePaper: React.FC = () => {
   const [executed, setExecuted] = useState<any>(null);
   const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [perf, setPerf] = useState<any>(null);
+
+  const loadPerformance = () => {
+    axios.get(`${MONITOR}/live/performance`)
+      .then(({ data }) => { if (!data.error) setPerf(data); })
+      .catch(() => { /* leave perf null */ });
+  };
+  useEffect(loadPerformance, []);
 
   const previewPlan = async () => {
     setLoading('preview'); setError(null); setExecuted(null); setPlan(null);
@@ -38,7 +52,7 @@ const LivePaper: React.FC = () => {
     try {
       const { data } = await axios.post(`${MONITOR}/live/rebalance/execute`, { strategy });
       if (data.error) setError(data.error);
-      else { setExecuted(data); setPlan(data); }
+      else { setExecuted(data); setPlan(data); loadPerformance(); }
     } catch (e: any) {
       setError(e?.message || 'request failed');
     } finally {
@@ -67,6 +81,51 @@ const LivePaper: React.FC = () => {
           no real money is ever at risk. US equities only.
         </p>
       </div>
+
+      {/* live performance */}
+      {perf && (
+        <div className="bg-white rounded-xl border border-border p-6 mb-6">
+          <h3 className="font-bold text-text-primary mb-4 flex items-center space-x-2">
+            <TrendingUp size={18} className="text-indigo-600" />
+            <span>Live Performance</span>
+          </h3>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4">
+            <div className="bg-page rounded-xl p-4">
+              <p className="text-[10px] font-bold text-text-muted uppercase">Total Return</p>
+              <p className={`text-2xl font-mono font-bold mt-1 ${(perf.total_return_pct ?? 0) >= 0 ? 'text-positive' : 'text-negative'}`}>
+                {(perf.total_return_pct ?? 0) >= 0 ? '+' : ''}{(perf.total_return_pct ?? 0).toFixed(2)}%
+              </p>
+            </div>
+            <div className="bg-page rounded-xl p-4">
+              <p className="text-[10px] font-bold text-text-muted uppercase">Current Equity</p>
+              <p className="text-2xl font-mono font-bold text-text-primary mt-1">{money(perf.current_equity)}</p>
+            </div>
+            <div className="bg-page rounded-xl p-4">
+              <p className="text-[10px] font-bold text-text-muted uppercase">P&amp;L vs $100k Start</p>
+              <p className={`text-2xl font-mono font-bold mt-1 ${(perf.total_pl ?? 0) >= 0 ? 'text-positive' : 'text-negative'}`}>
+                {(perf.total_pl ?? 0) >= 0 ? '+' : ''}{money(perf.total_pl)}
+              </p>
+            </div>
+          </div>
+          {perf.equity_curve?.length > 1 && (
+            <div className="h-56">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={perf.equity_curve}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
+                  <XAxis dataKey="date" tick={{ fontSize: 10 }} minTickGap={48} />
+                  <YAxis tick={{ fontSize: 10 }} domain={['auto', 'auto']}
+                    tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
+                  <Tooltip formatter={(v: any) => `$${Number(v).toLocaleString()}`} />
+                  <Line type="monotone" dataKey="value" stroke="#4F63D2" strokeWidth={2} dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+          <p className="text-[10px] text-text-muted mt-2">
+            This is your forward (live-paper) track record — the honest test against the backtest.
+          </p>
+        </div>
+      )}
 
       {/* controls */}
       <div className="bg-white rounded-xl border border-border p-4 mb-6 flex flex-wrap items-center gap-3">
