@@ -25,13 +25,21 @@ const LivePaper: React.FC = () => {
   const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [perf, setPerf] = useState<any>(null);
+  const [perfUpdated, setPerfUpdated] = useState<string>('');
 
   const loadPerformance = () => {
     axios.get(`${MONITOR}/live/performance`)
-      .then(({ data }) => { if (!data.error) setPerf(data); })
-      .catch(() => { /* leave perf null */ });
+      .then(({ data }) => {
+        if (!data.error) { setPerf(data); setPerfUpdated(new Date().toLocaleTimeString()); }
+      })
+      .catch(() => { /* keep last good perf */ });
   };
-  useEffect(loadPerformance, []);
+  // Auto-refresh the live performance every 20s so it tracks in real time.
+  useEffect(() => {
+    loadPerformance();
+    const id = setInterval(loadPerformance, 20000);
+    return () => clearInterval(id);
+  }, []);
 
   const previewPlan = async () => {
     setLoading('preview'); setError(null); setExecuted(null); setPlan(null);
@@ -85,10 +93,16 @@ const LivePaper: React.FC = () => {
       {/* live performance */}
       {perf && (
         <div className="bg-white rounded-xl border border-border p-6 mb-6">
-          <h3 className="font-bold text-text-primary mb-4 flex items-center space-x-2">
-            <TrendingUp size={18} className="text-indigo-600" />
-            <span>Live Performance</span>
-          </h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-bold text-text-primary flex items-center space-x-2">
+              <TrendingUp size={18} className="text-indigo-600" />
+              <span>Live Performance</span>
+            </h3>
+            <span className="flex items-center space-x-1.5 text-[10px] font-bold text-text-muted uppercase">
+              <span className="h-2 w-2 rounded-full bg-positive animate-pulse" />
+              <span>Live · auto-refresh 20s{perfUpdated ? ` · ${perfUpdated}` : ''}</span>
+            </span>
+          </div>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4">
             <div className="bg-page rounded-xl p-4">
               <p className="text-[10px] font-bold text-text-muted uppercase">Total Return</p>
