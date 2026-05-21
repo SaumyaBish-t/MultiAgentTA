@@ -105,6 +105,33 @@ def cross_sectional_run(
     }
 
 
+@router.get("/cross-sectional/multi-factor")
+def cross_sectional_multi_factor(
+    market: str = "us",
+    top_n: int = 5,
+    rebalance: int = 21,
+) -> dict[str, Any]:
+    """Multi-factor cross-sectional backtest — blends momentum, risk-adjusted
+    momentum, low-volatility and trend factors into the ranking."""
+    from signal_generation.strategies.multi_factor_cross_sectional import (
+        backtest_multi_factor,
+    )
+    r = backtest_multi_factor(
+        tickers=_filter_universe(market), top_n=top_n, rebalance_days=rebalance,
+    )
+    if r.error:
+        return {"error": r.error}
+    return {
+        "grade": r.grade,
+        "quality_score": r.quality_score,
+        "passed": r.passed,
+        "rejection_reasons": r.rejection_reasons,
+        "metrics": r.metrics,
+        "equity_curve": r.equity_curve,
+        "final_holdings": r.final_holdings,
+    }
+
+
 @router.get("/cross-sectional/optimize")
 def cross_sectional_optimize(market: str = "us") -> dict[str, Any]:
     """Walk-forward parameter optimisation — grid-search on train, report test."""

@@ -100,6 +100,7 @@ const CrossSectional: React.FC = () => {
   const [market, setMarket] = useState('us');
   const [loading, setLoading] = useState<string | null>(null);
   const [runResult, setRunResult] = useState<any>(null);
+  const [runLabel, setRunLabel] = useState('Backtest Result');
   const [optResult, setOptResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -108,7 +109,20 @@ const CrossSectional: React.FC = () => {
     try {
       const { data } = await axios.get(`${MONITOR}/cross-sectional/run`, { params: { market } });
       if (data.error) setError(data.error);
-      else setRunResult(data);
+      else { setRunResult(data); setRunLabel('Pure Momentum — Backtest Result'); }
+    } catch (e: any) {
+      setError(e?.message || 'request failed');
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  const runMultiFactor = async () => {
+    setLoading('mf'); setError(null); setOptResult(null);
+    try {
+      const { data } = await axios.get(`${MONITOR}/cross-sectional/multi-factor`, { params: { market } });
+      if (data.error) setError(data.error);
+      else { setRunResult(data); setRunLabel('Multi-Factor — Backtest Result'); }
     } catch (e: any) {
       setError(e?.message || 'request failed');
     } finally {
@@ -137,8 +151,10 @@ const CrossSectional: React.FC = () => {
           <span>Cross-Sectional Momentum</span>
         </h1>
         <p className="text-sm text-text-muted mt-1">
-          Ranks the whole universe by 12-1 momentum and holds an equal-weight basket of the
-          strongest names, rebalanced monthly — where systematic equity edge actually lives.
+          Ranks the whole universe and holds an equal-weight basket of the strongest names,
+          rebalanced monthly. <b>Pure Momentum</b> ranks on 12-1 return; <b>Multi-Factor</b>
+          blends momentum, risk-adjusted momentum, low-volatility and trend — where
+          systematic equity edge actually lives.
         </p>
       </div>
 
@@ -159,7 +175,15 @@ const CrossSectional: React.FC = () => {
           className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-indigo-700 disabled:opacity-50"
         >
           {loading === 'run' ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
-          <span>Run Backtest</span>
+          <span>Pure Momentum</span>
+        </button>
+        <button
+          onClick={runMultiFactor}
+          disabled={!!loading}
+          className="flex items-center space-x-2 px-4 py-2 bg-cyan-600 text-white text-sm font-bold rounded-xl hover:bg-cyan-700 disabled:opacity-50"
+        >
+          {loading === 'mf' ? <Loader2 size={16} className="animate-spin" /> : <TrendingUp size={16} />}
+          <span>Multi-Factor</span>
         </button>
         <button
           onClick={runOptimize}
@@ -180,7 +204,7 @@ const CrossSectional: React.FC = () => {
         </div>
       )}
 
-      {runResult && <ResultPanel title="Backtest Result" data={runResult} />}
+      {runResult && <ResultPanel title={runLabel} data={runResult} />}
 
       {optResult && (
         <>
