@@ -130,6 +130,24 @@ const CrossSectional: React.FC = () => {
     }
   };
 
+  const runStrategy = async (key: string, path: string, label: string) => {
+    setLoading(key); setError(null); setOptResult(null);
+    try {
+      const { data } = await axios.get(`${MONITOR}/cross-sectional/${path}`, { params: { market } });
+      if (data.error) setError(data.error);
+      else { setRunResult(data); setRunLabel(label); }
+    } catch (e: any) {
+      setError(e?.message || 'request failed');
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  const runTrendFollowing = () =>
+    runStrategy('tf', 'trend-following', 'Trend-Following — Backtest Result');
+  const runRiskParity = () =>
+    runStrategy('rp', 'risk-parity', 'Risk Parity — Backtest Result');
+
   const runOptimize = async () => {
     setLoading('opt'); setError(null); setRunResult(null);
     try {
@@ -184,6 +202,22 @@ const CrossSectional: React.FC = () => {
         >
           {loading === 'mf' ? <Loader2 size={16} className="animate-spin" /> : <TrendingUp size={16} />}
           <span>Multi-Factor</span>
+        </button>
+        <button
+          onClick={runTrendFollowing}
+          disabled={!!loading}
+          className="flex items-center space-x-2 px-4 py-2 bg-slate-700 text-white text-sm font-bold rounded-xl hover:bg-slate-800 disabled:opacity-50"
+        >
+          {loading === 'tf' ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
+          <span>Trend-Following</span>
+        </button>
+        <button
+          onClick={runRiskParity}
+          disabled={!!loading}
+          className="flex items-center space-x-2 px-4 py-2 bg-slate-700 text-white text-sm font-bold rounded-xl hover:bg-slate-800 disabled:opacity-50"
+        >
+          {loading === 'rp' ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
+          <span>Risk Parity</span>
         </button>
         <button
           onClick={runOptimize}

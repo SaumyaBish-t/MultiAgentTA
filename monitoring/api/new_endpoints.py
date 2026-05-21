@@ -132,6 +132,35 @@ def cross_sectional_multi_factor(
     }
 
 
+def _xs_result(r: Any) -> dict[str, Any]:
+    """Serialise a CrossSectionalResult into the standard response shape."""
+    if r.error:
+        return {"error": r.error}
+    return {
+        "grade": r.grade,
+        "quality_score": r.quality_score,
+        "passed": r.passed,
+        "rejection_reasons": r.rejection_reasons,
+        "metrics": r.metrics,
+        "equity_curve": r.equity_curve,
+        "final_holdings": r.final_holdings,
+    }
+
+
+@router.get("/cross-sectional/trend-following")
+def cross_sectional_trend_following(market: str = "us") -> dict[str, Any]:
+    """Time-series momentum: hold every name in its own uptrend, equal weight."""
+    from signal_generation.strategies.portfolio_strategies import backtest_trend_following
+    return _xs_result(backtest_trend_following(tickers=_filter_universe(market)))
+
+
+@router.get("/cross-sectional/risk-parity")
+def cross_sectional_risk_parity(market: str = "us") -> dict[str, Any]:
+    """Risk parity: hold the whole universe, weighted inversely to volatility."""
+    from signal_generation.strategies.portfolio_strategies import backtest_risk_parity
+    return _xs_result(backtest_risk_parity(tickers=_filter_universe(market)))
+
+
 @router.get("/cross-sectional/optimize")
 def cross_sectional_optimize(market: str = "us") -> dict[str, Any]:
     """Walk-forward parameter optimisation — grid-search on train, report test."""
