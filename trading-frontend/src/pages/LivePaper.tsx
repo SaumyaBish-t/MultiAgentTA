@@ -147,11 +147,12 @@ const LivePaper: React.FC = () => {
         </button>
         <button
           onClick={executeRebalance}
-          disabled={!!loading || !plan}
-          className="flex items-center space-x-2 px-4 py-2 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 disabled:opacity-40"
+          disabled={!!loading || !plan || !!executed}
+          title={executed ? 'Already executed — Preview again to rebalance once more' : ''}
+          className="flex items-center space-x-2 px-4 py-2 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {loading === 'execute' ? <Loader2 size={16} className="animate-spin" /> : <Rocket size={16} />}
-          <span>Execute Rebalance</span>
+          <span>{executed ? 'Executed ✓' : 'Execute Rebalance'}</span>
         </button>
       </div>
 
