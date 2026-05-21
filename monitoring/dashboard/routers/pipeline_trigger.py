@@ -129,19 +129,71 @@ async def run_pipeline_for_ticker(ticker: str, run_id: str):
             elif stage == 'backtest':
                 signal_id = r.get(f'pipeline:signal:{run_id}')
                 if signal_id:
+                    # Best-of-candidates: the LLM-written strategy is often
+                    # mediocre, while the research-grounded templates are
+                    # solid. Backtest the AI strategy AND the 3 templates,
+                    # then keep whichever grades best — so the pipeline
+                    # surfaces the strongest available strategy, not just
+                    # whatever the LLM happened to write.
+                    from signal_generation.agents.strategy_coder_agent import (
+                        TEMPLATE_EMA_CROSSOVER, TEMPLATE_RSI_MEAN_REVERSION,
+                        TEMPLATE_BREAKOUT)
+                    from signal_generation.grading import grade_metrics
+
                     with Session(engine) as session:
                         signal_record = session.query(TradingSignal).filter(
                             TradingSignal.id == signal_id).first()
                     if signal_record:
                         agent = BacktesterAgent()
-                        sig_dict = {
-                            "id": str(signal_record.id),
-                            "ticker": signal_record.ticker,
-                            "strategy_code": signal_record.strategy_code,
-                            "parameters": signal_record.parameters,
-                        }
-                        await asyncio.wait_for(
-                            agent.backtest(sig_dict), timeout=BACKTEST_TIMEOUT)
+                        candidates = []
+                        if signal_record.strategy_code:
+                            candidates.append(("ai_generated", signal_record.strategy_code))
+                        candidates += [
+                            ("momentum", TEMPLATE_EMA_CROSSOVER),
+                            ("mean_reversion", TEMPLATE_RSI_MEAN_REVERSION),
+                            ("breakout", TEMPLATE_BREAKOUT),
+                        ]
+                        best = None
+                        for cname, code in candidates:
+                            try:
+                                res = await asyncio.wait_for(
+                                    agent.backtest({
+                                        "id": str(signal_id),
+                                        "ticker": signal_record.ticker,
+                                        "strategy_code": code,
+                                        "parameters": {},
+                                    }), timeout=90)
+                                g = grade_metrics(res.get("metrics") or {})
+                                logger.info(f"{tag} candidate '{cname}': "
+                                            f"grade {g['quality_grade']} "
+                                            f"score {g['quality_score']}")
+                                if best is None or g["quality_score"] > best["score"]:
+                                    best = {"name": cname, "code": code,
+                                            "score": g["quality_score"],
+                                            "grade": g["quality_grade"]}
+                            except Exception as ce:
+                                logger.warning(f"{tag} candidate '{cname}' failed: {ce}")
+
+                        if best:
+                            # Persist the winner and run the authoritative
+                            # backtest last so its result/status is current.
+                            with Session(engine) as session:
+                                sr = session.query(TradingSignal).filter(
+                                    TradingSignal.id == signal_id).first()
+                                if sr:
+                                    sr.strategy_code = best["code"]
+                                    session.commit()
+                            await asyncio.wait_for(
+                                agent.backtest({
+                                    "id": str(signal_id),
+                                    "ticker": signal_record.ticker,
+                                    "strategy_code": best["code"],
+                                    "parameters": {},
+                                }), timeout=BACKTEST_TIMEOUT)
+                            status["best_strategy"] = best["name"]
+                            status["best_grade"] = best["grade"]
+                            logger.info(f"{tag} best strategy: '{best['name']}' "
+                                        f"grade {best['grade']}")
 
             elif stage == 'completed':
                 signal_id = r.get(f'pipeline:signal:{run_id}')

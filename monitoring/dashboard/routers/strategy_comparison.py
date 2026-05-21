@@ -240,7 +240,7 @@ async def get_strategy_comparison(
         with Session(engine) as session:
             backtest = session.query(BacktestResult).filter(
                 BacktestResult.signal_id == validated_signal.id
-            ).first()
+            ).order_by(BacktestResult.backtested_at.desc()).first()
             if backtest:
                 # Grade the strategy from its stored backtest metrics so the
                 # dashboard can show the A/B/C/D class. The grade is computed
