@@ -11,6 +11,7 @@ import Signals from './pages/Signals';
 import Risk from './pages/Risk';
 import Audit from './pages/Audit';
 import CrossSectional from './pages/CrossSectional';
+import LivePaper from './pages/LivePaper';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -30,6 +31,7 @@ function App() {
             <Route path="/" element={<CommandCenter />} />
             <Route path="/strategy" element={<StrategyComparison />} />
             <Route path="/cross-sectional" element={<CrossSectional />} />
+            <Route path="/live-paper" element={<LivePaper />} />
             <Route path="/portfolio" element={<Portfolio />} />
             <Route path="/signals" element={<Signals />} />
             <Route path="/risk" element={<Risk />} />

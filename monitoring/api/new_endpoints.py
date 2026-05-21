@@ -27,6 +27,7 @@ from typing import Any
 import redis
 from fastapi import APIRouter, HTTPException
 from loguru import logger
+from pydantic import BaseModel
 
 from config.settings import settings
 
@@ -186,6 +187,31 @@ def cross_sectional_optimize(market: str = "us") -> dict[str, Any]:
             "final_holdings": test.final_holdings,
         },
     }
+
+
+# ── Live paper rebalancing ───────────────────────────────────────
+class RebalanceRequest(BaseModel):
+    strategy: str = "trend-following"
+
+
+@router.get("/live/rebalance/plan")
+def live_rebalance_plan(strategy: str = "trend-following") -> dict[str, Any]:
+    """Preview the rebalance plan for a strategy — places no orders."""
+    from execution.paper_rebalancer import compute_rebalance_plan
+    try:
+        return compute_rebalance_plan(strategy)
+    except Exception as exc:
+        return {"error": str(exc), "strategy": strategy}
+
+
+@router.post("/live/rebalance/execute")
+def live_rebalance_execute(req: RebalanceRequest) -> dict[str, Any]:
+    """Execute the rebalance — submits paper orders to the Alpaca account."""
+    from execution.paper_rebalancer import execute_rebalance
+    try:
+        return execute_rebalance(req.strategy)
+    except Exception as exc:
+        return {"error": str(exc), "strategy": req.strategy}
 
 
 @router.get("/account/status")
